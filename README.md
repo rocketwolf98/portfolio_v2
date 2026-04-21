@@ -1,16 +1,51 @@
-# React + Vite
+# Interactive 3D Web Portfolio
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A modern, highly immersive, and fully responsive personal portfolio showcasing projects, graphics, and technical skills. Built with focus on rich aesthetics, smooth interactions, and 3D web graphics.
 
-Currently, two official plugins are available:
+## Features
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- **3D Planetary Engine**: An interactive, dynamic 3D hero section powered by Three.js and React Three Fiber.
+- **Micro-animations**: Seamless, fluid transitions and scroll animations driven by Framer Motion.
+- **Fully Responsive**: Optimized across all device viewing modes from desktop down to mobile, delivering a seamless experience.
+- **Dynamic Projects Showcase**: Beautiful project and graphic cards leveraging 3D tilt effects and hover states.
+- **Custom Visual Effects**: Features custom-built ambient elements such as dust clouds, animated navigation rings, and stylized cursors.
 
-## React Compiler
+## Tech Stack
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- **Framework:** React 19 + Vite
+- **Styling:** Vanilla CSS & Tailwind CSS for modern layouts and utilities
+- **3D Graphics:** Three.js, React Three Fiber (`@react-three/fiber`), `drei`, and postprocessing
+- **Animations:** Framer Motion
+- **Icons:** Lucide React & custom SVGs
 
-## Expanding the ESLint configuration
+## Getting Started
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+### Prerequisites
+Make sure you have Node.js installed on your machine.
+
+### Installation & Setup
+
+1. **Clone the repository:**
+   ```bash
+   git clone https://github.com/rocketwolf98/portfolio_v2.git
+   cd portfolio_v2
+   ```
+
+2. **Install dependencies:**
+   ```bash
+   npm install
+   ```
+
+3. **Start the development server:**
+   ```bash
+   npm run dev
+   ```
+
+4. **Build for production:**
+   ```bash
+   npm run build
+   ```
+
+## Design Philosophy
+
+The application interface is styled with premium aesthetics in mind — incorporating sleek dark themes, vibrant accent highlights (e.g., cyan/glowing red), and dynamic glassmorphic elements. All 3D rendering uses performance-based scaling to maintain frame rates across mobile devices while remaining visually stunning on desktop.

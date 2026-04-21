@@ -5,12 +5,14 @@ import { EffectComposer, Bloom } from '@react-three/postprocessing';
 import PlanetarySystem from './PlanetarySystem';
 import * as THREE from 'three';
 
-export default function HeroScene({ isClockMode, isFooter = false, time }) {
+import AsteroidManager from './AsteroidManager';
+
+export default function HeroScene({ isClockMode, isFooter = false, time, gameStatus, score, lives, onHit, onMiss, onRetry }) {
   const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
 
   return (
     <motion.div 
-      className="absolute inset-0 z-0 pointer-events-none"
+      className={`absolute inset-0 z-0 ${isClockMode ? 'pointer-events-auto' : 'pointer-events-none'}`}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 3, ease: "easeOut", delay: isFooter ? 0.5 : 0 }}
@@ -40,10 +42,11 @@ export default function HeroScene({ isClockMode, isFooter = false, time }) {
           </>
         )}
 
-        {/* Easter Egg Stars */}
+        {/* Easter Egg Stars & Vectors */}
         {isClockMode && (
           <>
             <Stars radius={100} depth={50} count={isMobile ? 1500 : 5000} factor={4} saturation={1} fade speed={2} />
+            <AsteroidManager gameStatus={gameStatus} onHit={onHit} onMiss={onMiss} />
           </>
         )}
         

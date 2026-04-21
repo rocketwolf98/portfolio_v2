@@ -7,6 +7,7 @@ const navItems = ["rocketwolf", "whoami", "projects", "graphics", "let's rock"];
 export default function Navigation() {
   const [isHovered, setIsHovered] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isGameMode, setIsGameMode] = useState(false);
 
   const handleScroll = (id) => {
     const elementId = id === "let's rock" ? "footer" : id;
@@ -56,6 +57,14 @@ export default function Navigation() {
       window.removeEventListener('touchend', handleTouchEnd);
     };
   }, []);
+
+  useEffect(() => {
+    const handleGameMode = (e) => setIsGameMode(e.detail);
+    window.addEventListener('gameModeChange', handleGameMode);
+    return () => window.removeEventListener('gameModeChange', handleGameMode);
+  }, []);
+
+  if (isGameMode) return null;
 
   return (
     <>

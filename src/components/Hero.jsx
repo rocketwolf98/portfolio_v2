@@ -5,14 +5,8 @@ import WolfLogo from './WolfLogo';
 import DustClouds from './DustClouds';
 import HeroScene from './Three/HeroScene';
 
-// default words list moved inside component via ref
-const funnyQuotes = [
-  { text: "Birds of the same feather make a good feather duster...", author: "R.M.Q." },
-  { text: "Life is like a wheel. Sometimes its on the bottom, sometimes its on a vulcanizing shop.", author: "R.M.Q." },
-  { text: "Goodness gracious, you're the shoplift!", author: "V.G." },
-  { text: "Holabels!", author: "M.D." },
-
-];
+import { Target } from 'lucide-react';
+import { playSound } from '../utils/audio';
 
 export const StarryBackground = ({ isClockMode = false }) => {
   const [stars, setStars] = useState([]);
@@ -175,41 +169,32 @@ export default function Hero() {
   const [isClockMode, setIsClockMode] = useState(false);
   const [time, setTime] = useState(new Date());
 
-  const [quoteIndex, setQuoteIndex] = useState(0);
-  const [isQuoteVisible, setIsQuoteVisible] = useState(false);
+  // Game State
+  const [gameStatus, setGameStatus] = useState('idle'); // 'idle' | 'playing' | 'gameover'
+  const [score, setScore] = useState(0);
+  const [lives, setLives] = useState(3);
+  const [isTakingDamage, setIsTakingDamage] = useState(false);
 
   useEffect(() => {
     let int;
-    let quoteInt;
     if (isClockMode) {
       int = setInterval(() => setTime(new Date()), 1000);
-
-      let visible = false;
-      let tick = 0;
-      quoteInt = setInterval(() => {
-        tick++;
-        if (tick % 10 === 0) {
-          visible = !visible;
-          setIsQuoteVisible(visible);
-          if (visible) {
-            setQuoteIndex(prev => {
-              let next;
-              do {
-                next = Math.floor(Math.random() * funnyQuotes.length);
-              } while (next === prev && funnyQuotes.length > 1);
-              return next;
-            });
-          }
-        }
-      }, 1000);
-    } else {
-      setIsQuoteVisible(false);
     }
+    
+    // Dispatch event to hide Navigation global
+    window.dispatchEvent(new CustomEvent('gameModeChange', { detail: isClockMode }));
+
     return () => {
       clearInterval(int);
-      if (quoteInt) clearInterval(quoteInt);
     };
   }, [isClockMode]);
+
+  useEffect(() => {
+    if (lives <= 0 && gameStatus === 'playing') {
+       setGameStatus('gameover');
+       playSound('boom');
+    }
+  }, [lives, gameStatus]);
 
   const handleLogoClick = (e) => {
     e.stopPropagation();
@@ -217,6 +202,7 @@ export default function Hero() {
     setLogoClicks(prev => {
       if (prev + 1 >= 10) {
         setIsClockMode(true);
+        setGameStatus('idle');
         setTime(new Date());
         return 0;
       }
@@ -225,10 +211,7 @@ export default function Hero() {
   };
 
   const handleBackgroundClick = () => {
-    if (isClockMode) {
-      setIsClockMode(false);
-      setLogoClicks(0);
-    }
+    // Click no longer exits. Only Scroll or ESC.
   };
 
   const containerRef = useRef(null);
@@ -264,19 +247,44 @@ export default function Hero() {
 
   useEffect(() => {
     const handleScroll = () => {
-      if (window.scrollY > 10) {
+      if (window.scrollY > window.innerHeight * 0.5) {
         setEasterEggActive(false);
         setIsClockMode(false);
+        setGameStatus('idle');
         setLogoClicks(0);
         if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
       }
     };
+    
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape' && isClockMode) {
+        setEasterEggActive(false);
+        setIsClockMode(false);
+        setGameStatus('idle');
+        setLogoClicks(0);
+      }
+    };
+
     window.addEventListener('scroll', handleScroll);
+    window.addEventListener('keydown', handleKeyDown);
     return () => {
       window.removeEventListener('scroll', handleScroll);
+      window.removeEventListener('keydown', handleKeyDown);
       if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
     };
-  }, []);
+  }, [isClockMode]);
+
+  const handleShoot = () => {
+    if (gameStatus === 'idle' && isClockMode) {
+      setGameStatus('playing');
+      setScore(0);
+      setLives(3);
+      playSound('start');
+    } else if (gameStatus === 'playing') {
+      // Background click means a missed shot, played sound but no points
+      playSound('laser');
+    }
+  };
 
   const handleMouseEnter = () => {
     if (!easterEggActive) {
@@ -294,9 +302,34 @@ export default function Hero() {
     }
   };
 
+  const handleMiss = () => {
+    setLives(l => l - 1);
+    playSound('boom');
+    setIsTakingDamage(true);
+    setTimeout(() => setIsTakingDamage(false), 400);
+  };
+
   return (
-    <div id="rocketwolf" ref={containerRef} className="relative w-full h-screen overflow-hidden bg-black snap-start cursor-auto" onClick={handleBackgroundClick}>
-      <motion.div style={{ y, opacity }} className="relative w-full h-full flex flex-col justify-center items-center text-center">
+    <div id="rocketwolf" ref={containerRef} className={`relative w-full h-screen overflow-hidden bg-black snap-start ${isClockMode ? 'cursor-crosshair' : 'cursor-auto'}`} onClick={handleShoot}>
+      <motion.div 
+        style={{ y, opacity }} 
+        className="relative w-full h-full flex flex-col justify-center items-center text-center origin-center"
+        animate={isTakingDamage ? { x: [-15, 15, -10, 10, -5, 5, 0], y: [-10, 10, -10, 10, -5, 5, 0] } : {}}
+        transition={isTakingDamage ? { duration: 0.4, ease: "easeInOut" } : {}}
+      >
+        {/* Damage Flash */}
+        <AnimatePresence>
+           {isTakingDamage && (
+             <motion.div 
+               className="absolute inset-0 bg-[#ff3333] z-[200] mix-blend-screen pointer-events-none"
+               initial={{ opacity: 0.5 }}
+               animate={{ opacity: 0 }}
+               exit={{ opacity: 0 }}
+               transition={{ duration: 0.4 }}
+             />
+           )}
+        </AnimatePresence>
+
         {/* Original 2D Backgrounds (Hidden in Clock Mode) */}
         {!isClockMode && (
           <>
@@ -306,7 +339,16 @@ export default function Hero() {
         )}
 
         {/* 3D Scene */}
-        <HeroScene isClockMode={isClockMode} time={time} />
+        <HeroScene 
+           isClockMode={isClockMode} 
+           time={time} 
+           gameStatus={gameStatus}
+           score={score}
+           lives={lives}
+           onHit={() => { setScore(s => s + 100); playSound('laser'); setTimeout(() => playSound('boom'), 50); }}
+           onMiss={handleMiss}
+           onRetry={() => { setGameStatus('playing'); setScore(0); setLives(3); playSound('start'); }}
+        />
 
         {/* Wolf Emblem Fading In */}
         <AnimatePresence mode="wait">
@@ -408,27 +450,61 @@ export default function Hero() {
           )}
         </AnimatePresence>
 
-        {/* Clock Mode Typography / Quote */}
+        {/* HTML Game Over and HUD */}
         <AnimatePresence>
-          {isClockMode && isQuoteVisible && (
-            <motion.div
-              key="clock-quote"
-              className="absolute z-20 flex items-center justify-center pointer-events-none px-8 text-center max-w-5xl"
-              initial={{ opacity: 0, scale: 0.9, filter: "blur(10px)" }}
-              animate={{ opacity: 1, scale: 1, filter: "blur(0px)" }}
-              exit={{ opacity: 0, scale: 0.9, filter: "blur(10px)" }}
-              transition={{ duration: 1, ease: "easeOut" }}
+          {isClockMode && gameStatus === 'playing' && (
+            <motion.div 
+              className="absolute top-10 left-10 right-10 flex flex-col md:flex-row justify-between items-start md:items-center pointer-events-none z-30"
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
             >
-              <h1 className="font-serif text-[24px] md:text-[4vw] leading-tight text-white/80 tracking-wide drop-shadow-[0_0_20px_rgba(255,255,255,0.3)]">
-                "{funnyQuotes[quoteIndex].text}"
-                <br />
-                <span className="text-[16px] md:text-[2vw] text-accent italic mt-6 block opacity-80">
-                  - {funnyQuotes[quoteIndex].author}
-                </span>
+              <div className="font-serif text-[24px] md:text-[32px] text-white tracking-wide">
+                score <span className="text-accent italic">{score}</span>
+              </div>
+              <div className="flex gap-3 mt-4 md:mt-0">
+                {[1, 2, 3].map(i => (
+                  <motion.div 
+                    key={i} 
+                    className={`w-3 h-3 md:w-4 md:h-4 rounded-full ${i <= lives ? 'bg-accent shadow-[0_0_10px_#ff3333]' : 'bg-white/20'}`}
+                    animate={i <= lives ? { scale: [1, 1.2, 1], transition: { repeat: Infinity, duration: 2, delay: i * 0.3 } } : { scale: 1 }}
+                  />
+                ))}
+              </div>
+            </motion.div>
+          )}
+
+          {isClockMode && gameStatus === 'gameover' && (
+            <motion.div
+              className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-black/80 backdrop-blur-sm pointer-events-auto"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+            >
+              <h1 className="font-serif text-[60px] md:text-[80px] leading-none text-white tracking-tight mb-4">
+                game <span className="text-accent italic">over</span>
               </h1>
+              <p className="font-sans text-[18px] md:text-[20px] font-light text-white/70 mb-10 tracking-[0.2em] uppercase">
+                final score: {score}
+              </p>
+              
+              <button
+                className="group relative px-8 py-3 bg-transparent border border-accent text-accent font-sans text-sm tracking-[0.3em] font-medium cursor-[inherit] overflow-hidden transition-colors duration-300 hover:text-white"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setGameStatus('playing');
+                  setLives(3);
+                  setScore(0);
+                  playSound('start');
+                }}
+              >
+                <div className="absolute inset-0 bg-accent translate-y-[100%] group-hover:translate-y-0 transition-transform duration-300 ease-out z-0" />
+                <span className="relative z-10">RETRY MISSION</span>
+              </button>
             </motion.div>
           )}
         </AnimatePresence>
+
       </motion.div>
     </div>
   );

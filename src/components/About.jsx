@@ -77,6 +77,10 @@ export default function About() {
           <motion.div
             className="w-14 h-14 rounded-full border border-white/60 flex items-center justify-center cursor-pointer text-white hover:bg-accent hover:border-accent transition-colors duration-300"
             whileHover={{ y: 5 }}
+            onClick={(e) => {
+              e.stopPropagation();
+              document.getElementById('projects')?.scrollIntoView({ behavior: 'smooth' });
+            }}
           >
             <ArrowDown className="w-5 h-5" strokeWidth={1.5} />
           </motion.div>

@@ -1,9 +1,10 @@
-import { Canvas } from '@react-three/fiber';
+import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { motion } from 'framer-motion';
 import { Stars, Sparkles } from '@react-three/drei';
 import { EffectComposer, Bloom } from '@react-three/postprocessing';
 import PlanetarySystem from './PlanetarySystem';
 import * as THREE from 'three';
+import { useEffect, useRef } from 'react';
 
 import AsteroidManager from './AsteroidManager';
 import StarWarp from './StarWarp';
@@ -48,6 +49,7 @@ export default function HeroScene({ isClockMode, isFooter = false, time, gameSta
           <>
             <Stars radius={100} depth={50} count={isMobile ? 1500 : 5000} factor={4} saturation={1} fade speed={2} />
             <StarWarp active={bossData?.status === 'defeated'} />
+            <LaserManager gameStatus={gameStatus} />
             <AsteroidManager gameStatus={gameStatus} score={score} bossData={bossData} setBossData={setBossData} onHit={onHit} onMiss={onMiss} />
           </>
         )}
@@ -60,5 +62,59 @@ export default function HeroScene({ isClockMode, isFooter = false, time, gameSta
         </EffectComposer>
       </Canvas>
     </motion.div>
+  );
+}
+
+function LaserManager({ gameStatus }) {
+  const { camera, mouse } = useThree();
+  const bullets = useRef(Array.from({ length: 15 }).map(() => ({
+    mesh: null,
+    active: false,
+    velocity: new THREE.Vector3()
+  })));
+
+  useEffect(() => {
+    const handleFire = () => {
+      if (gameStatus !== 'playing') return;
+      const bullet = bullets.current.find(b => !b.active);
+      if (bullet && bullet.mesh) {
+        bullet.active = true;
+        bullet.mesh.visible = true;
+        
+        // Shoot from camera towards unprojected mouse click
+        const dir = new THREE.Vector3(mouse.x, mouse.y, -1).unproject(camera).sub(camera.position).normalize();
+        bullet.mesh.position.copy(camera.position).add(dir.clone().multiplyScalar(2));
+        bullet.velocity.copy(dir).multiplyScalar(200); // 200 units/sec laser
+        
+        bullet.mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
+      }
+    };
+    
+    // Bind to pointerdown to capture all clicks
+    window.addEventListener('pointerdown', handleFire);
+    return () => window.removeEventListener('pointerdown', handleFire);
+  }, [camera, mouse, gameStatus]);
+
+  useFrame((state, delta) => {
+    bullets.current.forEach(b => {
+      if (b.active && b.mesh) {
+        b.mesh.position.addScaledVector(b.velocity, delta);
+        if (b.mesh.position.z < -200 || b.mesh.position.z > 20) {
+          b.active = false;
+          b.mesh.visible = false;
+        }
+      }
+    });
+  });
+
+  return (
+    <group>
+      {bullets.current.map((b, i) => (
+        <mesh key={i} ref={(m) => (b.mesh = m)} visible={false}>
+          <cylinderGeometry args={[0.08, 0.08, 6, 8]} />
+          <meshBasicMaterial color="#ffffff" toneMapped={false} />
+        </mesh>
+      ))}
+    </group>
   );
 }

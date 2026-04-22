@@ -174,13 +174,25 @@ export default function Hero() {
   const [score, setScore] = useState(0);
   const [lives, setLives] = useState(3);
   const [isTakingDamage, setIsTakingDamage] = useState(false);
+  const [bossData, setBossData] = useState({ status: 'inactive', hp: 0, maxHp: 0, name: '' });
+
+  // Galaxy Colors
+  const galaxyColors = ['#ff3333', '#33ff33', '#3355ff', '#ff33aa', '#ffff33'];
+  const [galaxyLevel, setGalaxyLevel] = useState(0);
 
   useEffect(() => {
     let int;
     if (isClockMode) {
       int = setInterval(() => setTime(new Date()), 1000);
+    } else {
+      // Reset game if exited
+      setGameStatus('idle');
+      setScore(0);
+      setLives(3);
+      setBossData({ status: 'inactive', hp: 0, maxHp: 0, name: '' });
+      setGalaxyLevel(0);
     }
-    
+
     // Dispatch event to hide Navigation global
     window.dispatchEvent(new CustomEvent('gameModeChange', { detail: isClockMode }));
 
@@ -191,8 +203,8 @@ export default function Hero() {
 
   useEffect(() => {
     if (lives <= 0 && gameStatus === 'playing') {
-       setGameStatus('gameover');
-       playSound('boom');
+      setGameStatus('gameover');
+      playSound('boom');
     }
   }, [lives, gameStatus]);
 
@@ -255,7 +267,7 @@ export default function Hero() {
         if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
       }
     };
-    
+
     const handleKeyDown = (e) => {
       if (e.key === 'Escape' && isClockMode) {
         setEasterEggActive(false);
@@ -309,25 +321,48 @@ export default function Hero() {
     setTimeout(() => setIsTakingDamage(false), 400);
   };
 
+  const addScore = (points) => {
+    setScore(prev => {
+      const newScore = prev + points;
+      // Extra life every 10,000 points
+      if (Math.floor(newScore / 10000) > Math.floor(prev / 10000)) {
+        setLives(l => l + 1);
+        playSound('start'); // Positive feedback for extra life
+      }
+      return newScore;
+    });
+  };
+
+  // Warp Transition Hook
+  useEffect(() => {
+    if (bossData.status === 'defeated') {
+      const warpTimeout = setTimeout(() => {
+        setGalaxyLevel(prev => (prev + 1) % galaxyColors.length);
+        setBossData(prev => ({ ...prev, status: 'inactive', hp: 0, maxHp: 0 }));
+      }, 4000);
+      return () => clearTimeout(warpTimeout);
+    }
+  }, [bossData.status, galaxyColors.length]);
+
   return (
     <div id="rocketwolf" ref={containerRef} className={`relative w-full h-screen overflow-hidden bg-black snap-start ${isClockMode ? 'cursor-crosshair' : 'cursor-auto'}`} onClick={handleShoot}>
-      <motion.div 
-        style={{ y, opacity }} 
+      <motion.div
+        style={{ y, opacity }}
         className="relative w-full h-full flex flex-col justify-center items-center text-center origin-center"
         animate={isTakingDamage ? { x: [-15, 15, -10, 10, -5, 5, 0], y: [-10, 10, -10, 10, -5, 5, 0] } : {}}
         transition={isTakingDamage ? { duration: 0.4, ease: "easeInOut" } : {}}
       >
         {/* Damage Flash */}
         <AnimatePresence>
-           {isTakingDamage && (
-             <motion.div 
-               className="absolute inset-0 bg-[#ff3333] z-[200] mix-blend-screen pointer-events-none"
-               initial={{ opacity: 0.5 }}
-               animate={{ opacity: 0 }}
-               exit={{ opacity: 0 }}
-               transition={{ duration: 0.4 }}
-             />
-           )}
+          {isTakingDamage && (
+            <motion.div
+              className="absolute inset-0 bg-[#ff3333] z-[200] mix-blend-screen pointer-events-none"
+              initial={{ opacity: 0.5 }}
+              animate={{ opacity: 0 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.4 }}
+            />
+          )}
         </AnimatePresence>
 
         {/* Original 2D Backgrounds (Hidden in Clock Mode) */}
@@ -339,15 +374,18 @@ export default function Hero() {
         )}
 
         {/* 3D Scene */}
-        <HeroScene 
-           isClockMode={isClockMode} 
-           time={time} 
-           gameStatus={gameStatus}
-           score={score}
-           lives={lives}
-           onHit={() => { setScore(s => s + 100); playSound('laser'); setTimeout(() => playSound('boom'), 50); }}
-           onMiss={handleMiss}
-           onRetry={() => { setGameStatus('playing'); setScore(0); setLives(3); playSound('start'); }}
+        <HeroScene
+          isClockMode={isClockMode}
+          time={time}
+          gameStatus={gameStatus}
+          score={score}
+          lives={lives}
+          bossData={bossData}
+          setBossData={setBossData}
+          galaxyColor={galaxyColors[galaxyLevel]}
+          onHit={(points = 100) => { addScore(points); playSound('laser'); setTimeout(() => playSound('boom'), 50); }}
+          onMiss={handleMiss}
+          onRetry={() => { setGameStatus('playing'); setScore(0); setLives(3); setBossData({ status: 'inactive', hp: 0, maxHp: 0, name: '' }); setGalaxyLevel(0); playSound('start'); }}
         />
 
         {/* Wolf Emblem Fading In */}
@@ -355,7 +393,7 @@ export default function Hero() {
           {!isClockMode && (
             <motion.div
               key="wolf-emblem"
-              className="absolute z-10 text-accent/15 w-[500px] h-[500px] flex items-center justify-center pointer-events-auto cursor-pointer tooltip-trigger"
+              className="absolute z-10 text-accent/15 w-[500px] h-[500px] flex items-center justify-center pointer-events-auto cursor-pointer tooltip-trigger left-1/2 top-1/2 -translate-x-1/2 -translate-y-[50%]"
               initial={{ opacity: 0, scale: 0.8 }}
               animate={{ opacity: 1, scale: 1, transition: { duration: 3, delay: 1 } }}
               exit={{ opacity: 0, scale: 1.2, transition: { duration: 0.8 } }}
@@ -373,7 +411,7 @@ export default function Hero() {
                   ease: "easeInOut",
                 }}
               >
-                <WolfLogo className="w-[80%] h-[80%]" />
+                <WolfLogo className="w-[72%] h-[72%]" />
               </motion.div>
             </motion.div>
           )}
@@ -453,7 +491,7 @@ export default function Hero() {
         {/* HTML Game Over and HUD */}
         <AnimatePresence>
           {isClockMode && gameStatus === 'playing' && (
-            <motion.div 
+            <motion.div
               className="absolute top-10 left-10 right-10 flex flex-col md:flex-row justify-between items-start md:items-center pointer-events-none z-30"
               initial={{ opacity: 0, y: -20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -463,17 +501,78 @@ export default function Hero() {
                 score <span className="text-accent italic">{score}</span>
               </div>
               <div className="flex gap-3 mt-4 md:mt-0">
-                {[1, 2, 3].map(i => (
-                  <motion.div 
-                    key={i} 
-                    className={`w-3 h-3 md:w-4 md:h-4 rounded-full ${i <= lives ? 'bg-accent shadow-[0_0_10px_#ff3333]' : 'bg-white/20'}`}
+                {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(i => (
+                  <motion.div
+                    key={i}
+                    className={`w-3 h-3 md:w-4 md:h-4 rounded-full transition-opacity duration-300 ${i <= lives ? 'bg-accent shadow-[0_0_10px_#ff3333] opacity-100' : 'bg-white/20 opacity-0 hidden'}`}
                     animate={i <= lives ? { scale: [1, 1.2, 1], transition: { repeat: Infinity, duration: 2, delay: i * 0.3 } } : { scale: 1 }}
+                    style={{ display: i <= Math.max(3, lives) ? 'block' : 'none' }}
                   />
                 ))}
+                {lives > 10 && (
+                  <div className="text-accent font-sans text-sm ml-2">+{lives - 10}</div>
+                )}
               </div>
             </motion.div>
           )}
 
+          {/* Boss Warning Screen */}
+          {isClockMode && gameStatus === 'playing' && bossData.status === 'warning' && (
+            <motion.div
+              className="absolute inset-0 z-40 flex flex-col items-center justify-center pointer-events-none"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: [0, 1, 0] }}
+              transition={{ repeat: Infinity, duration: 1 }}
+            >
+              <h1 className="font-sans text-[30px] md:text-[50px] font-bold text-[#ff3333] tracking-[0.5em] uppercase">
+                WARNING
+              </h1>
+              <p className="font-sans text-[12px] md:text-[16px] text-white/80 tracking-[0.3em] uppercase mt-4">
+                Leviathan Class Incoming
+              </p>
+            </motion.div>
+          )}
+
+          {/* Mission Success Screen (Star Warp) */}
+          {isClockMode && gameStatus === 'playing' && bossData.status === 'defeated' && (
+            <motion.div
+              className="absolute inset-0 z-40 flex flex-col items-center justify-center pointer-events-none"
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0 }}
+            >
+              <h1 className="font-serif text-[40px] md:text-[70px] text-white tracking-wide">
+                mission <span className="text-accent italic">success</span>
+              </h1>
+              <p className="font-sans text-[14px] md:text-[18px] text-white/70 tracking-[0.4em] uppercase mt-4 animate-pulse">
+                entering new galaxy
+              </p>
+            </motion.div>
+          )}
+
+          {/* Boss Health Bar HUD */}
+          {isClockMode && gameStatus === 'playing' && bossData.status === 'active' && (
+            <motion.div
+              className="absolute bottom-10 left-10 right-10 flex flex-col items-center pointer-events-none z-30"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 20 }}
+            >
+              <div className="w-full max-w-2xl bg-white/10 h-4 md:h-6 border border-white/30 overflow-hidden relative">
+                <motion.div
+                  className="absolute top-0 left-0 bottom-0 bg-accent shadow-[0_0_20px_#ff3333]"
+                  initial={{ width: '100%' }}
+                  animate={{ width: `${(bossData.hp / bossData.maxHp) * 100}%` }}
+                  transition={{ type: 'spring', damping: 20, stiffness: 100 }}
+                />
+              </div>
+              <p className="font-sans text-[12px] md:text-[14px] text-white/50 tracking-[0.4em] uppercase mt-2">
+                {bossData.name || "Asteroid Leviathan"}
+              </p>
+            </motion.div>
+          )}
+
+          {/* Game Over Screen */}
           {isClockMode && gameStatus === 'gameover' && (
             <motion.div
               className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-black/80 backdrop-blur-sm pointer-events-auto"
@@ -487,7 +586,7 @@ export default function Hero() {
               <p className="font-sans text-[18px] md:text-[20px] font-light text-white/70 mb-10 tracking-[0.2em] uppercase">
                 final score: {score}
               </p>
-              
+
               <button
                 className="group relative px-8 py-3 bg-transparent border border-accent text-accent font-sans text-sm tracking-[0.3em] font-medium cursor-[inherit] overflow-hidden transition-colors duration-300 hover:text-white"
                 onClick={(e) => {

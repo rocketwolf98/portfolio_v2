@@ -327,7 +327,11 @@ export default function Hero() {
           bossData={bossData}
           setBossData={setBossData}
           galaxyColor={galaxyColors[galaxyLevel]}
-          onHit={(points = 100) => { addScore(points); playSound('laser'); setTimeout(() => playSound('boom'), 50); }}
+          onHit={(points = 100, pos) => { 
+            addScore(points); 
+            playSound('laser', pos); 
+            setTimeout(() => playSound('boom', pos), 50); 
+          }}
           onMiss={handleMiss}
           onRetry={() => { setGameStatus('playing'); setScore(0); setLives(3); setBossData({ status: 'inactive', hp: 0, maxHp: 0, name: '' }); setGalaxyLevel(0); playSound('start'); }}
         />

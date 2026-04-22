@@ -48,7 +48,7 @@ export default function AsteroidManager({ gameStatus, score, bossData, setBossDa
           if (warningTimer.current <= 0) {
             // SPAWN BOSS
             const level = bossesSpawned.current;
-            const maxHp = 10 + (level * 5); // scales HP
+            const maxHp = 15 + (level * 5); // scales HP slightly higher
             const archangels = ["Michael", "Gabriel", "Raphael", "Uriel", "Selaphiel", "Jegudiel", "Barachiel", "Jeremiel"];
             const bossName = "Archangel " + archangels[Math.max(0, level - 1) % archangels.length];
             setBossData?.({ status: 'active', hp: maxHp, maxHp, name: bossName });
@@ -63,9 +63,9 @@ export default function AsteroidManager({ gameStatus, score, bossData, setBossDa
             const targetZ = 15;
             const targetPos = new THREE.Vector3(targetX, targetY, targetZ);
             
-            // Speed starts very slow but ramps up 10% per level
-            const velocityMultiplier = 1 + (level * 0.1); 
-            const velocity = targetPos.clone().sub(startPos).normalize().multiplyScalar(15 * velocityMultiplier);
+            // Speed starts very slow but ramps up 15% per level
+            const velocityMultiplier = 1 + (level * 0.15); 
+            const velocity = targetPos.clone().sub(startPos).normalize().multiplyScalar(18 * velocityMultiplier);
 
             const bossAst = {
               id: 'boss-' + Date.now(),
@@ -174,9 +174,9 @@ export default function AsteroidManager({ gameStatus, score, bossData, setBossDa
           const defeatedState = { status: 'defeated', hp: 0, maxHp: 0, name: '' };
           setBossData?.(defeatedState);
           playStateRef.current.bossData = defeatedState; // Synchronous update to prevent spawning gap
-          onHit?.(1000);
+          onHit?.(1000, currentAsteroids[index].position);
         } else {
-          onHit?.(100);
+          onHit?.(100, currentAsteroids[index].position);
         }
       } else {
         playSound('laser');

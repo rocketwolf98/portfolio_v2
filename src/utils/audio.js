@@ -40,15 +40,15 @@ export const startAmbient = async () => {
   
   // Setup Pad
   s.programChange(channel, 89); // Pad 1 (New Age)
-  s.controllerChange(channel, 7, 40); // Volume
+  s.controllerChange(channel, 7, 80); // Increased Volume (was 40)
   s.controllerChange(channel, 91, 100); // Reverb depth
 
   // Setup Seashore
   s.programChange(seashoreChannel, 122); // Seashore
-  s.controllerChange(seashoreChannel, 7, 30); // Lower volume
+  s.controllerChange(seashoreChannel, 7, 60); // Increased volume (was 30)
   
   const playSeashore = () => {
-    s.noteOn(seashoreChannel, 60, 60);
+    s.noteOn(seashoreChannel, 60, 80); // Increased velocity (was 60)
   };
   playSeashore();
   const seashoreInterval = setInterval(playSeashore, 10000); // Re-trigger every 10s
@@ -56,7 +56,7 @@ export const startAmbient = async () => {
   const playDroneNote = () => {
     const notes = [36, 43, 46, 48]; // C2, G2, Bb2, C3
     const note = notes[Math.floor(Math.random() * notes.length)];
-    const velocity = 30 + Math.random() * 20;
+    const velocity = 50 + Math.random() * 30; // Increased velocity (was 30-50)
     const duration = 4000 + Math.random() * 4000;
 
     s.noteOn(channel, note, velocity);
@@ -93,7 +93,7 @@ export const stopAmbient = () => {
   }
 };
 
-export const playSound = async (type) => {
+export const playSound = async (type, spatial = null) => {
   try {
     const s = await initAudio();
     if (!s) return;
@@ -102,8 +102,24 @@ export const playSound = async (type) => {
       await audioCtx.resume();
     }
 
+    // Default spatial settings
+    let pan = 64; // Center
+    let volume = 100; // Default
+
+    if (spatial) {
+      // Panning: X position from -30 to 30 mapped to 0-127
+      pan = Math.max(0, Math.min(127, ((spatial.x + 30) / 60) * 127));
+      
+      // Volume: Distance (Z position). Camera is at 15.
+      // Asteroids spawn at -150 and pass camera at 15.
+      const dist = Math.abs(15 - spatial.z);
+      volume = Math.max(20, Math.min(127, 127 - (dist / 1.5)));
+    }
+
     if (type === 'laser') {
       const channel = 1;
+      s.controllerChange(channel, 10, pan);
+      s.controllerChange(channel, 7, volume);
       s.controllerChange(channel, 0, 2); // Laser variation
       s.programChange(channel, 127);
       s.noteOn(channel, 72, 90);
@@ -111,6 +127,8 @@ export const playSound = async (type) => {
       
     } else if (type === 'boom') {
       const channel = 2;
+      s.controllerChange(channel, 10, pan);
+      s.controllerChange(channel, 7, volume);
       s.controllerChange(channel, 0, 3); // Explosion variation
       s.programChange(channel, 127);
       s.noteOn(channel, 40, 110);

@@ -22,7 +22,7 @@ export default function HeroScene({ isClockMode, isFooter = false, time, gameSta
       <Canvas
         camera={{ position: [0, isFooter ? 0 : 0, 15], fov: 60 }}
         gl={{ antialias: false, alpha: true, toneMapping: THREE.ACESFilmicToneMapping, powerPreference: "high-performance" }}
-        dpr={isMobile ? [1, 1] : [1, 1.5]} // Capped at 1.5 to prevent massive lag on 4K/Retina displays
+        dpr={isMobile ? [1, 1] : [1, 1.2]} // Capped at 1.2 to ensure 60fps on 4K/Retina displays
         performance={{ min: 0.5 }} // Dynamically drop resolution to 50% if FPS drops
       >
         <ambientLight intensity={0.2} />

@@ -51,7 +51,7 @@ export default function About() {
 
       {/* Header Text */}
       <motion.p 
-        className="relative z-10 font-serif italic text-[clamp(3.5rem,15vw,7rem)] leading-[1.1] w-full md:w-[517px]"
+        className="relative z-10 font-serif italic text-[clamp(4rem,10vw,8rem)] leading-[1.1] w-full md:w-[517px]"
         initial={{ x: -100, opacity: 0 }}
         whileInView={{ x: 0, opacity: 1 }}
         transition={{ duration: 1.2, ease: "easeOut", delay: 0.2 }}
@@ -68,7 +68,7 @@ export default function About() {
         transition={{ duration: 1.2, ease: "easeOut", delay: 0.4 }}
         viewport={{ once: true, amount: 0.5 }}
       >
-        <p className="font-sans font-normal text-[clamp(1.1rem,4.5vw,2.2rem)] text-right w-full min-w-full relative shrink-0">
+        <p className="font-sans font-normal text-[clamp(1.2rem,4vw,2.2rem)] text-right w-full min-w-full relative shrink-0">
           <span className="leading-[1.4]">Good design solves problems. Great design makes them invisible. </span>
           <span className="font-serif italic text-accent">rocketwolf</span>
           <span className="leading-[1.4]"> does the latter.</span>

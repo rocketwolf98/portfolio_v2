@@ -12,7 +12,7 @@ const Footer = () => {
       <div className="relative z-20 flex flex-col items-center justify-center w-full h-full text-center px-4 py-8">
 
         {/* Let's Rock Together Text */}
-        <h2 className="font-serif text-[clamp(44px,12vw,100px)] leading-none text-white select-none mb-6 tracking-tight text-center">
+        <h2 className="font-serif text-[clamp(3rem,10vw,7rem)] leading-none text-white select-none mb-6 tracking-tight text-center">
           let's <motion.span whileHover={{ scale: 1.05 }} className="inline-block transition-colors duration-300 hover:text-accent hover:italic cursor-pointer relative z-30 pointer-events-auto selection:bg-transparent">rock</motion.span> together
         </h2>
 

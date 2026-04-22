@@ -48,13 +48,13 @@ export default function ProjectCard({ project }) {
             </p>
           </div>
           <div>
-            <h3 className="font-serif text-[#e5e2e1] text-[32px] md:text-[40px] lg:text-[48px] tracking-[-1.5px] leading-none">
+            <h3 className="font-serif text-[#e5e2e1] text-[32px] md:text-[44px] lg:text-[52px] tracking-[-1.5px] leading-none">
               {project.title || "Cyber Relic"}
             </h3>
           </div>
         </div>
         
-        <p className="font-sans font-normal text-[rgba(231,189,183,0.8)] text-[14px] md:text-[16px] leading-[1.4] mt-6 line-clamp-3">
+        <p className="font-sans font-normal text-[rgba(231,189,183,0.8)] text-[15px] md:text-[17px] leading-[1.4] mt-6 line-clamp-3">
           {project.description || "An architectural exploration of neo-brutalist data centers and the erosion of digital memory."}
         </p>
 

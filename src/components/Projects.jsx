@@ -137,7 +137,7 @@ export default function Projects() {
     >
       <div className="flex justify-between items-center px-6 md:px-[120px] mb-8 md:mb-12 shrink-0">
         <motion.p
-          className="font-serif italic text-[clamp(3.5rem,14vw,7rem)] leading-[1.1]"
+          className="font-serif italic text-[clamp(4rem,10vw,8rem)] leading-[1.1]"
           initial={{ x: -100, opacity: 0 }}
           whileInView={{ x: 0, opacity: 1 }}
           transition={{ duration: 1.2, ease: "easeOut", delay: 0.2 }}

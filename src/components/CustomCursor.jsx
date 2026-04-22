@@ -11,6 +11,7 @@ const CustomCursor = () => {
   const innerControls = useAnimationControls();
   const outerControls = useAnimationControls();
   const timerRef = useRef(null);
+  const idleTimerRef = useRef(null);
 
   // We use useMotionValue for performance and direct value injection
   const cursorX = useMotionValue(-100);
@@ -40,13 +41,22 @@ const CustomCursor = () => {
   }, []);
 
   useEffect(() => {
+    const resetIdleTimer = () => {
+      if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+      idleTimerRef.current = setTimeout(() => {
+        setIsVisible(false);
+      }, 10000);
+    };
+
     const updateMousePosition = (e) => {
       if (!isVisible) setIsVisible(true);
+      resetIdleTimer();
       cursorX.set(e.clientX - 28); // Center offset for 56x56px cursor wrapper
       cursorY.set(e.clientY - 28);
     };
 
     const handleMouseDown = () => {
+      resetIdleTimer();
       // Don't interrupt if the easter egg is currently playing
       if (isEasterEggPlaying) return;
       
@@ -99,13 +109,20 @@ const CustomCursor = () => {
     };
 
     const handleMouseUp = () => {
+      resetIdleTimer();
       setIsClicking(false);
       if (timerRef.current) clearTimeout(timerRef.current);
     };
     
     // hide cursor when leaving window
-    const handleMouseLeave = () => setIsVisible(false);
-    const handleMouseEnter = () => setIsVisible(true);
+    const handleMouseLeave = () => {
+      setIsVisible(false);
+      if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+    };
+    const handleMouseEnter = () => {
+      setIsVisible(true);
+      resetIdleTimer();
+    };
 
     window.addEventListener('mousemove', updateMousePosition);
     window.addEventListener('mousedown', handleMouseDown);
@@ -120,6 +137,7 @@ const CustomCursor = () => {
       document.documentElement.removeEventListener('mouseleave', handleMouseLeave);
       document.documentElement.removeEventListener('mouseenter', handleMouseEnter);
       if (timerRef.current) clearTimeout(timerRef.current);
+      if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
     };
   }, [cursorX, cursorY, isVisible, isEasterEggPlaying, controls, innerControls, outerControls]);
 
@@ -131,13 +149,14 @@ const CustomCursor = () => {
         height: 56,
         x: cursorXSpring,
         y: cursorYSpring,
-        opacity: isVisible ? 1 : 0
       }}
       animate={{
         scale: (isClicking && !isEasterEggPlaying) ? 0.75 : 1, // Normal click shrink
+        opacity: isVisible ? 1 : 0
       }}
       transition={{
-        scale: { type: 'spring', stiffness: 400, damping: 25 }
+        scale: { type: 'spring', stiffness: 400, damping: 25 },
+        opacity: { duration: 0.5, ease: "easeInOut" }
       }}
     >
       <AnimatePresence mode="wait">

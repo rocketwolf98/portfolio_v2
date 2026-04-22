@@ -6,7 +6,7 @@ import DustClouds from './DustClouds';
 import HeroScene from './Three/HeroScene';
 
 import { Target } from 'lucide-react';
-import { playSound } from '../utils/audio';
+import { playSound, startAmbient, stopAmbient } from '../utils/audio';
 
 export const StarryBackground = ({ isClockMode = false }) => {
   const [stars, setStars] = useState([]);
@@ -32,7 +32,7 @@ export const StarryBackground = ({ isClockMode = false }) => {
       {stars.map((star, i) => {
         const isVisible = i < 60 || isClockMode;
         return (
-          <motion.div
+          <div
             key={i}
             className={`absolute rounded-full ${star.color}`}
             style={{
@@ -40,15 +40,10 @@ export const StarryBackground = ({ isClockMode = false }) => {
               top: `${star.y}%`,
               width: star.size,
               height: star.size,
+              opacity: 0,
+              animation: isVisible ? `twinkle ${star.duration}s ease-in-out ${star.delay}s infinite` : 'none',
+              willChange: 'opacity'
             }}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: isVisible ? [0, 0.6, 0] : 0 }}
-            transition={isVisible ? {
-              duration: star.duration,
-              repeat: Infinity,
-              delay: star.delay,
-              ease: "easeInOut",
-            } : { duration: 1 }}
           />
         );
       })}
@@ -77,89 +72,6 @@ export const StarryBackground = ({ isClockMode = false }) => {
   );
 };
 
-export const ConcentricCircles = ({ isClockMode = false, time = null }) => {
-  const mouseX = useMotionValue(0);
-  const mouseY = useMotionValue(0);
-
-  useEffect(() => {
-    const handleMouseMove = (e) => {
-      const x = (e.clientX - window.innerWidth / 2) * 0.05;
-      const y = (e.clientY - window.innerHeight / 2) * 0.05;
-      mouseX.set(x);
-      mouseY.set(y);
-    };
-    window.addEventListener("mousemove", handleMouseMove);
-    return () => window.removeEventListener("mousemove", handleMouseMove);
-  }, [mouseX, mouseY]);
-
-  return (
-    <div className="absolute inset-0 z-10 flex items-center justify-center pointer-events-none">
-      {[1, 2, 3].map((circle, i) => {
-        const springX = useSpring(mouseX, { damping: 30 + i * 10, stiffness: 100 - i * 15 });
-        const springY = useSpring(mouseY, { damping: 30 + i * 10, stiffness: 100 - i * 15 });
-
-        const x = useTransform(springX, (val) => val * (i + 1));
-        const y = useTransform(springY, (val) => val * (i + 1));
-
-        const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
-        const baseScale = isClockMode ? 350 : (isMobile ? 180 : 280);
-
-        const totalSeconds = time ? time.getHours() * 3600 + time.getMinutes() * 60 + time.getSeconds() : 0;
-        let rotation = 0;
-        if (isClockMode && time) {
-          if (i === 0) rotation = totalSeconds * 6;
-          else if (i === 1) rotation = totalSeconds * 0.1;
-          else if (i === 2) rotation = totalSeconds * (360 / 43200);
-        }
-
-        return (
-          <motion.div
-            key={i}
-            className="absolute rounded-full"
-            style={{
-              width: `${(i + 1) * (isClockMode ? 30 : 25)}vw`,
-              height: `${(i + 1) * (isClockMode ? 30 : 25)}vw`,
-              minWidth: `${(i + 1) * baseScale}px`,
-              minHeight: `${(i + 1) * baseScale}px`,
-              x,
-              y
-            }}
-            initial={{ scale: 0, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            transition={{ duration: 3, delay: i * 0.4, ease: 'easeOut' }}
-          >
-            <motion.div
-              className={`w-full h-full border ${isClockMode ? 'border-accent/40' : 'border-white/20'} rounded-full relative`}
-              animate={isClockMode ? {
-                scale: 1,
-                opacity: 1,
-                rotate: rotation
-              } : {
-                scale: [1, 1.03, 1],
-                opacity: [0.15, 0.4, 0.15],
-                rotate: 0
-              }}
-              transition={isClockMode ? {
-                duration: 1,
-                ease: "linear"
-              } : {
-                duration: 6,
-                repeat: Infinity,
-                ease: "easeInOut",
-                delay: i * 1.5
-              }}
-            >
-              {isClockMode && (
-                <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 w-4 h-4 bg-accent text-accent rounded-full shadow-[0_0_15px_currentColor]" />
-              )}
-            </motion.div>
-          </motion.div>
-        );
-      })}
-    </div>
-  );
-};
-
 export default function Hero() {
   const wordsListRef = useRef(["python", "data", "ai", "figma", "design", "web"]);
   const [currentWord, setCurrentWord] = useState(wordsListRef.current[2]); // Starting with ai
@@ -171,6 +83,9 @@ export default function Hero() {
   const [logoClicks, setLogoClicks] = useState(0);
   const [isClockMode, setIsClockMode] = useState(false);
   const [time, setTime] = useState(new Date());
+
+  const [isIdle, setIsIdle] = useState(false);
+  const idleTimerRef = useRef(null);
 
   // Game State
   const [gameStatus, setGameStatus] = useState('idle'); // 'idle' | 'playing' | 'gameover'
@@ -187,8 +102,9 @@ export default function Hero() {
     let int;
     if (isClockMode) {
       int = setInterval(() => setTime(new Date()), 1000);
+      startAmbient();
     } else {
-      // Reset game if exited
+      stopAmbient();
       setGameStatus('idle');
       setScore(0);
       setLives(3);
@@ -201,6 +117,7 @@ export default function Hero() {
 
     return () => {
       clearInterval(int);
+      stopAmbient();
     };
   }, [isClockMode]);
 
@@ -289,6 +206,26 @@ export default function Hero() {
     };
   }, [isClockMode]);
 
+  useEffect(() => {
+    const resetIdleTimer = () => {
+      setIsIdle(false);
+      if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+      idleTimerRef.current = setTimeout(() => {
+        setIsIdle(true);
+      }, 15000);
+    };
+
+    const events = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart'];
+    events.forEach(evt => window.addEventListener(evt, resetIdleTimer));
+
+    resetIdleTimer();
+
+    return () => {
+      events.forEach(evt => window.removeEventListener(evt, resetIdleTimer));
+      if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+    };
+  }, []);
+
   const handleShoot = () => {
     if (gameStatus === 'idle' && isClockMode) {
       setGameStatus('playing');
@@ -338,7 +275,11 @@ export default function Hero() {
 
   // Warp Transition Hook
   useEffect(() => {
+    if (bossData.status === 'warning') {
+      playSound('alarm');
+    }
     if (bossData.status === 'defeated') {
+      playSound('warp');
       const warpTimeout = setTimeout(() => {
         setGalaxyLevel(prev => (prev + 1) % galaxyColors.length);
         setBossData(prev => ({ ...prev, status: 'inactive', hp: 0, maxHp: 0 }));
@@ -430,18 +371,18 @@ export default function Hero() {
               animate={{ opacity: 1, y: 0, transition: { duration: 1.5, delay: 2 } }}
               exit={{ opacity: 0, y: -20, transition: { duration: 0.8 } }}
             >
-              <h1 className="font-serif text-[clamp(3rem,15vw,6.5rem)] leading-[1.1] text-white mb-2 select-none tracking-tight">
+              <h1 className="font-serif text-[clamp(3.5rem,12vw,9rem)] leading-[1.1] text-white mb-2 select-none tracking-tight">
                 i am <span className="text-accent italic font-serif">rocketwolf</span>
               </h1>
 
-              <motion.div layout className="flex items-center justify-center gap-2 md:gap-3 text-[clamp(1.1rem,4.5vw,2.4rem)] font-sans font-light text-white select-none h-[1.2em]">
+              <motion.div layout className="flex items-center justify-center gap-2 md:gap-3 text-[clamp(1.2rem,4vw,2.4rem)] font-sans font-light text-white select-none h-[1.2em]">
                 <motion.span layout>i speak</motion.span>
                 <motion.div layout className="relative flex items-center justify-center">
                   <AnimatePresence mode="popLayout">
                     <motion.span
                       key={currentWord}
                       layout
-                      className="font-serif italic text-[clamp(1.3rem,5.5vw,2.8rem)] leading-none whitespace-nowrap"
+                      className="font-serif italic text-[clamp(1.4rem,5vw,2.8rem)] leading-none whitespace-nowrap"
                       initial={{ opacity: 0, y: 15 }}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: -15, position: 'absolute' }}
@@ -470,7 +411,7 @@ export default function Hero() {
                 className="font-sans text-[12px] tracking-[0.3em] font-medium text-white/50 select-none text-center transition-all duration-300 pointer-events-auto"
                 layout
               >
-                {easterEggActive ? "WHAT ARE YOU WAITING FOR?" : "GET TO KNOW HIM"}
+                {isIdle ? "THERE MUST BE A GAME HERE SOMEWHERE..." : (easterEggActive ? "WHAT ARE YOU WAITING FOR?" : "GET TO KNOW HIM")}
               </motion.span>
               <motion.div
                 className="w-14 h-14 rounded-full bg-white flex items-center justify-center cursor-pointer text-black hover:bg-accent hover:text-white transition-colors duration-300 pointer-events-auto"
@@ -578,10 +519,14 @@ export default function Hero() {
           {/* Game Over Screen */}
           {isClockMode && gameStatus === 'gameover' && (
             <motion.div
-              className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-black/80 backdrop-blur-sm pointer-events-auto"
+              className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-black/80 backdrop-blur-sm pointer-events-auto cursor-pointer"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
+              onClick={() => {
+                setGameStatus('idle');
+                setLogoClicks(0);
+              }}
             >
               <h1 className="font-serif text-[60px] md:text-[80px] leading-none text-white tracking-tight mb-4">
                 game <span className="text-accent italic">over</span>

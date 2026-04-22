@@ -1,50 +1,170 @@
-const audioCtx = typeof window !== 'undefined' ? new (window.AudioContext || window.webkitAudioContext)() : null;
+import { WorkletSynthesizer, DEFAULT_SYNTH_CONFIG } from 'spessasynth_lib';
+import processorUrl from 'spessasynth_lib/dist/spessasynth_processor.min.js?url';
+import sf2Url from '../assets/soundfont/GeneralUser GS 1.35.sf2?url';
 
-export const playSound = (type) => {
-  if (!audioCtx) return;
-  if (audioCtx.state === 'suspended') {
-    audioCtx.resume();
+let synth = null;
+let audioCtx = null;
+let initPromise = null;
+let ambientInterval = null;
+
+const initAudio = async () => {
+  if (initPromise) return initPromise;
+
+  initPromise = (async () => {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    await audioCtx.audioWorklet.addModule(processorUrl);
+    synth = new WorkletSynthesizer(audioCtx, DEFAULT_SYNTH_CONFIG);
+    synth.connect(audioCtx.destination);
+    
+    const response = await fetch(sf2Url);
+    const data = await response.arrayBuffer();
+    await synth.soundBankManager.addSoundBank(data, 'gs-font');
+    await synth.isReady;
+    
+    if (audioCtx.state === 'suspended') {
+      await audioCtx.resume();
+    }
+    
+    return synth;
+  })();
+
+  return initPromise;
+};
+
+export const startAmbient = async () => {
+  const s = await initAudio();
+  if (ambientInterval) return;
+
+  const channel = 15;
+  const seashoreChannel = 11;
+  
+  // Setup Pad
+  s.programChange(channel, 89); // Pad 1 (New Age)
+  s.controllerChange(channel, 7, 40); // Volume
+  s.controllerChange(channel, 91, 100); // Reverb depth
+
+  // Setup Seashore
+  s.programChange(seashoreChannel, 122); // Seashore
+  s.controllerChange(seashoreChannel, 7, 30); // Lower volume
+  
+  const playSeashore = () => {
+    s.noteOn(seashoreChannel, 60, 60);
+  };
+  playSeashore();
+  const seashoreInterval = setInterval(playSeashore, 10000); // Re-trigger every 10s
+
+  const playDroneNote = () => {
+    const notes = [36, 43, 46, 48]; // C2, G2, Bb2, C3
+    const note = notes[Math.floor(Math.random() * notes.length)];
+    const velocity = 30 + Math.random() * 20;
+    const duration = 4000 + Math.random() * 4000;
+
+    s.noteOn(channel, note, velocity);
+    setTimeout(() => s.noteOff(channel, note), duration);
+  };
+
+  // 3D Panning effect for Seashore
+  let pan = 64;
+  let panDirection = 1;
+  const panInterval = setInterval(() => {
+    pan += panDirection * 2;
+    if (pan >= 127 || pan <= 0) panDirection *= -1;
+    s.controllerChange(seashoreChannel, 10, pan); // CC 10 is Pan
+  }, 100);
+
+  playDroneNote();
+  const droneInterval = setInterval(playDroneNote, 5000);
+  
+  ambientInterval = { droneInterval, panInterval, seashoreInterval, seashoreChannel };
+};
+
+export const stopAmbient = () => {
+  if (ambientInterval) {
+    clearInterval(ambientInterval.droneInterval);
+    clearInterval(ambientInterval.panInterval);
+    clearInterval(ambientInterval.seashoreInterval);
+    if (synth) {
+      synth.stopAll(false);
+    }
+    ambientInterval = null;
   }
+  if (synth) {
+    synth.stopAll(false);
+  }
+};
 
-  const oscillator = audioCtx.createOscillator();
-  const gainNode = audioCtx.createGain();
+export const playSound = async (type) => {
+  try {
+    const s = await initAudio();
+    if (!s) return;
 
-  oscillator.connect(gainNode);
-  gainNode.connect(audioCtx.destination);
+    if (audioCtx.state === 'suspended') {
+      await audioCtx.resume();
+    }
 
-  if (type === 'laser') {
-    // High-pitched rapid sweep down (pew)
-    oscillator.type = 'square';
-    oscillator.frequency.setValueAtTime(880, audioCtx.currentTime); 
-    oscillator.frequency.exponentialRampToValueAtTime(110, audioCtx.currentTime + 0.1); 
-    
-    gainNode.gain.setValueAtTime(0.05, audioCtx.currentTime);
-    gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
-    
-    oscillator.start();
-    oscillator.stop(audioCtx.currentTime + 0.1);
-  } else if (type === 'boom') {
-    // Low-pitched noise/sawtooth explosion
-    oscillator.type = 'sawtooth';
-    oscillator.frequency.setValueAtTime(100, audioCtx.currentTime);
-    oscillator.frequency.exponentialRampToValueAtTime(10, audioCtx.currentTime + 0.3);
-    
-    gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
-    gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
-    
-    oscillator.start();
-    oscillator.stop(audioCtx.currentTime + 0.3);
-  } else if (type === 'start') {
-    // Start arpeggio
-    oscillator.type = 'square';
-    oscillator.frequency.setValueAtTime(440, audioCtx.currentTime);
-    oscillator.frequency.setValueAtTime(554, audioCtx.currentTime + 0.05);
-    oscillator.frequency.setValueAtTime(659, audioCtx.currentTime + 0.1);
+    if (type === 'laser') {
+      const channel = 1;
+      s.controllerChange(channel, 0, 2); // Laser variation
+      s.programChange(channel, 127);
+      s.noteOn(channel, 72, 90);
+      setTimeout(() => s.noteOff(channel, 72), 150);
+      
+    } else if (type === 'boom') {
+      const channel = 2;
+      s.controllerChange(channel, 0, 3); // Explosion variation
+      s.programChange(channel, 127);
+      s.noteOn(channel, 40, 110);
+      setTimeout(() => s.noteOff(channel, 40), 1500);
+      
+    } else if (type === 'alarm') {
+      const channel = 14;
+      s.programChange(channel, 80); // Square Lead
+      const pulse = (count) => {
+        if (count <= 0) return;
+        s.noteOn(channel, 84, 100);
+        setTimeout(() => {
+          s.noteOff(channel, 84);
+          setTimeout(() => pulse(count - 1), 100);
+        }, 100);
+      };
+      pulse(6); // 6 rapid pulses
+      
+    } else if (type === 'warp') {
+      const channel = 13;
+      s.controllerChange(channel, 0, 7); // Bank 7
+      s.programChange(channel, 125);     // Jetplane
+      s.noteOn(channel, 60, 100);
+      
+      // Pitch bend up
+      let bend = 8192;
+      const bendInterval = setInterval(() => {
+        bend += 150;
+        if (bend >= 16383) {
+          clearInterval(bendInterval);
+          s.noteOff(channel, 60);
+        }
+        s.pitchWheel(channel, bend);
+      }, 20);
 
-    gainNode.gain.setValueAtTime(0.05, audioCtx.currentTime);
-    gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.2);
+      // Add reverse cymbal build-up
+      const cymChannel = 12;
+      s.programChange(cymChannel, 119); // Reverse Cymbal
+      s.noteOn(cymChannel, 60, 100);
 
-    oscillator.start();
-    oscillator.stop(audioCtx.currentTime + 0.2);
+    } else if (type === 'start') {
+      const channel = 3;
+      s.controllerChange(channel, 0, 1); // Bank 1
+      s.programChange(channel, 124);     // Telephone 2
+      
+      const sequence = [0, 150, 300];
+      sequence.forEach((time) => {
+        setTimeout(() => {
+          s.noteOn(channel, 72, 100);
+          setTimeout(() => s.noteOff(channel, 72), 100);
+        }, time);
+      });
+    }
+  } catch (err) {
+    console.warn('Audio play failed:', err);
   }
 };

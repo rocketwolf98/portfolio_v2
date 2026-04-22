@@ -114,10 +114,10 @@ function OrbitSystem({ index, distance, speed, planetRadius, isClockMode, color,
         groupRef.current.scale.lerp(new THREE.Vector3(1, 1, 1), 0.05);
         
         if (isWarping) {
-          // Spin independently!
-          groupRef.current.rotation.x += delta * (0.1 + index * 0.05);
-          groupRef.current.rotation.y += delta * (0.05 + index * 0.02);
-          groupRef.current.rotation.z += delta * (0.02 + index * 0.01);
+          // Spin erratically during warp!
+          groupRef.current.rotation.x += delta * (5 + Math.random() * 5);
+          groupRef.current.rotation.y += delta * (3 + Math.random() * 5);
+          groupRef.current.rotation.z += delta * (2 + Math.random() * 2);
         } else {
           // Lerp back to local 0,0,0
           groupRef.current.rotation.x = THREE.MathUtils.lerp(groupRef.current.rotation.x, 0, 0.05);

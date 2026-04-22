@@ -97,22 +97,28 @@ export default function Navigation() {
             animate={{ x: 0 }}
             exit={{ x: "-100%" }}
             transition={{ type: "spring", damping: 25, stiffness: 200 }}
-            className="fixed inset-0 z-[1000] bg-[#1a1a1a]/80 backdrop-blur-xl flex flex-col justify-center px-10 md:hidden pointer-events-auto"
+            className="fixed inset-0 z-[1000] bg-[#1a1a1a]/90 backdrop-blur-2xl flex flex-col justify-center px-10 md:hidden pointer-events-auto"
+            style={{ 
+              paddingTop: 'var(--safe-top)',
+              paddingBottom: 'var(--safe-bottom)',
+              paddingLeft: 'max(2.5rem, var(--safe-left))',
+              paddingRight: 'max(2.5rem, var(--safe-right))'
+            }}
           >
             <button 
               onClick={() => setIsMobileMenuOpen(false)}
-              className="absolute top-8 left-8 text-white/50 hover:text-white transition-colors p-2"
+              className="absolute top-[calc(var(--safe-top)+2rem)] left-8 text-white/50 hover:text-white transition-colors p-2"
             >
               <X size={32} strokeWidth={1} />
             </button>
-            <ul className="flex flex-col items-start gap-4 font-sans text-[12vw] font-light tracking-tight text-white/90">
+            <ul className="flex flex-col items-start gap-6 md:gap-4 font-sans text-[clamp(2.5rem,10vw,5rem)] font-light tracking-tight text-white/90">
               {navItems.map((item, index) => (
                 <motion.li 
                   key={index}
                   initial={{ opacity: 0, x: -20 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: 0.1 + index * 0.1 }}
-                  className="cursor-pointer hover:text-accent transition-colors"
+                  className="cursor-pointer hover:text-accent transition-colors py-1"
                   onClick={() => handleScroll(item)}
                 >
                   {item}

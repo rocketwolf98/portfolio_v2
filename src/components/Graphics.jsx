@@ -72,7 +72,7 @@ export default function Graphics() {
   return (
     <div
       id="graphics"
-      className="bg-[#161616] relative w-full h-screen text-white flex flex-col pt-16 md:pt-24 pb-8 overflow-hidden snap-start group"
+      className="bg-[#161616] relative w-full h-screen text-white flex flex-col pt-[calc(var(--safe-top)+4rem)] pb-[calc(var(--safe-bottom)+2rem)] overflow-hidden snap-start group"
       onMouseMove={handleMouseMove}
     >
       {/* Base Dotted Pattern (10% Opacity) */}
@@ -97,7 +97,7 @@ export default function Graphics() {
 
       <div className="flex justify-between items-center px-10 md:px-[120px] mb-8 md:mb-12 shrink-0 relative z-10 pointer-events-none">
         <motion.p
-          className="font-serif italic text-[72px] sm:text-[80px] md:text-[96px] leading-[normal]"
+          className="font-serif italic text-[clamp(3.5rem,14vw,7rem)] leading-[1.1]"
           initial={{ x: -100, opacity: 0 }}
           whileInView={{ x: 0, opacity: 1 }}
           transition={{ duration: 1.2, ease: "easeOut", delay: 0.2 }}

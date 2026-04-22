@@ -133,11 +133,11 @@ export default function Projects() {
   return (
     <div
       id="projects"
-      className="bg-[#161616] relative w-full h-screen text-white flex flex-col pt-16 md:pt-24 pb-8 overflow-hidden snap-start"
+      className="bg-[#161616] relative w-full h-screen text-white flex flex-col pt-[calc(var(--safe-top)+4rem)] pb-[calc(var(--safe-bottom)+2rem)] overflow-hidden snap-start"
     >
       <div className="flex justify-between items-center px-6 md:px-[120px] mb-8 md:mb-12 shrink-0">
         <motion.p
-          className="font-serif italic text-[72px] sm:text-[80px] md:text-[96px] leading-[normal]"
+          className="font-serif italic text-[clamp(3.5rem,14vw,7rem)] leading-[1.1]"
           initial={{ x: -100, opacity: 0 }}
           whileInView={{ x: 0, opacity: 1 }}
           transition={{ duration: 1.2, ease: "easeOut", delay: 0.2 }}
@@ -184,7 +184,7 @@ export default function Projects() {
       <motion.div
         ref={scrollRef}
         onScroll={handleScroll}
-        className="flex flex-col md:flex-row flex-1 gap-[32px] overflow-y-auto md:overflow-y-hidden overflow-x-hidden md:overflow-x-auto py-8 px-6 md:px-[120px] [&::-webkit-scrollbar]:hidden shrink-0"
+        className="flex flex-col md:flex-row flex-1 gap-[32px] overflow-y-auto md:overflow-y-hidden overflow-x-hidden md:overflow-x-auto py-4 px-6 md:px-[120px] [&::-webkit-scrollbar]:hidden shrink-0"
         style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
         variants={containerVariants}
         initial="hidden"

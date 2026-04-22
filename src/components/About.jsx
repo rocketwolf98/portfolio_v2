@@ -15,7 +15,7 @@ export default function About() {
   return (
     <div 
       id="whoami"
-      className="bg-[#161616] relative w-full h-screen overflow-hidden text-white flex flex-col justify-between py-24 px-6 md:px-[120px] group snap-start"
+      className="bg-[#161616] relative w-full h-screen overflow-hidden text-white flex flex-col justify-between pt-[calc(var(--safe-top)+5rem)] pb-[calc(var(--safe-bottom)+5rem)] px-6 md:px-[120px] group snap-start"
       onMouseMove={handleMouseMove}
     >
       {/* Base Dotted Pattern (10% Opacity) */}
@@ -51,7 +51,7 @@ export default function About() {
 
       {/* Header Text */}
       <motion.p 
-        className="relative z-10 font-serif italic text-[72px] sm:text-[80px] md:text-[96px] leading-[normal] w-full md:w-[517px]"
+        className="relative z-10 font-serif italic text-[clamp(3.5rem,15vw,7rem)] leading-[1.1] w-full md:w-[517px]"
         initial={{ x: -100, opacity: 0 }}
         whileInView={{ x: 0, opacity: 1 }}
         transition={{ duration: 1.2, ease: "easeOut", delay: 0.2 }}
@@ -68,10 +68,10 @@ export default function About() {
         transition={{ duration: 1.2, ease: "easeOut", delay: 0.4 }}
         viewport={{ once: true, amount: 0.5 }}
       >
-        <p className="font-sans font-normal text-[24px] md:text-[36px] text-right w-full min-w-full relative shrink-0">
-          <span className="leading-[normal]">Good design solves problems. Great design makes them invisible. </span>
+        <p className="font-sans font-normal text-[clamp(1.1rem,4.5vw,2.2rem)] text-right w-full min-w-full relative shrink-0">
+          <span className="leading-[1.4]">Good design solves problems. Great design makes them invisible. </span>
           <span className="font-serif italic text-accent">rocketwolf</span>
-          <span className="leading-[normal]"> does the latter.</span>
+          <span className="leading-[1.4]"> does the latter.</span>
         </p>
         <div className="content-stretch flex items-center relative shrink-0 pointer-events-auto">
           <motion.div

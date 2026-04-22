@@ -101,6 +101,9 @@ export const ConcentricCircles = ({ isClockMode = false, time = null }) => {
         const x = useTransform(springX, (val) => val * (i + 1));
         const y = useTransform(springY, (val) => val * (i + 1));
 
+        const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
+        const baseScale = isClockMode ? 350 : (isMobile ? 180 : 280);
+
         const totalSeconds = time ? time.getHours() * 3600 + time.getMinutes() * 60 + time.getSeconds() : 0;
         let rotation = 0;
         if (isClockMode && time) {
@@ -114,10 +117,10 @@ export const ConcentricCircles = ({ isClockMode = false, time = null }) => {
             key={i}
             className="absolute rounded-full"
             style={{
-              width: `${(i + 1) * 30}vw`,
-              height: `${(i + 1) * 30}vw`,
-              minWidth: `${(i + 1) * 350}px`,
-              minHeight: `${(i + 1) * 350}px`,
+              width: `${(i + 1) * (isClockMode ? 30 : 25)}vw`,
+              height: `${(i + 1) * (isClockMode ? 30 : 25)}vw`,
+              minWidth: `${(i + 1) * baseScale}px`,
+              minHeight: `${(i + 1) * baseScale}px`,
               x,
               y
             }}
@@ -133,7 +136,7 @@ export const ConcentricCircles = ({ isClockMode = false, time = null }) => {
                 rotate: rotation
               } : {
                 scale: [1, 1.03, 1],
-                opacity: [0.3, 1, 0.3],
+                opacity: [0.15, 0.4, 0.15],
                 rotate: 0
               }}
               transition={isClockMode ? {
@@ -393,7 +396,7 @@ export default function Hero() {
           {!isClockMode && (
             <motion.div
               key="wolf-emblem"
-              className="absolute z-10 text-accent/15 w-[500px] h-[500px] flex items-center justify-center pointer-events-auto cursor-pointer tooltip-trigger left-1/2 top-1/2 -translate-x-1/2 -translate-y-[50%]"
+              className="absolute z-10 text-accent/15 w-[min(400px,90vw)] h-[min(400px,90vw)] md:w-[500px] md:h-[500px] flex items-center justify-center pointer-events-auto cursor-pointer tooltip-trigger left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
               initial={{ opacity: 0, scale: 0.8 }}
               animate={{ opacity: 1, scale: 1, transition: { duration: 3, delay: 1 } }}
               exit={{ opacity: 0, scale: 1.2, transition: { duration: 0.8 } }}
@@ -422,23 +425,23 @@ export default function Hero() {
           {!isClockMode && (
             <motion.div
               key="typography"
-              className="relative z-20 flex flex-col items-center mt-[-30px] pointer-events-none"
+              className="relative z-20 flex flex-col items-center mt-[-20px] md:mt-[-30px] pointer-events-none px-4"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0, transition: { duration: 1.5, delay: 2 } }}
               exit={{ opacity: 0, y: -20, transition: { duration: 0.8 } }}
             >
-              <h1 className="font-serif text-[72px] sm:text-[80px] md:text-[100px] leading-none text-white mb-2 select-none tracking-tight">
+              <h1 className="font-serif text-[clamp(3rem,15vw,6.5rem)] leading-[1.1] text-white mb-2 select-none tracking-tight">
                 i am <span className="text-accent italic font-serif">rocketwolf</span>
               </h1>
 
-              <motion.div layout className="flex items-center justify-center gap-2 md:gap-3 text-[24px] md:text-[38px] font-sans font-light text-white select-none h-[40px] md:h-[50px]">
+              <motion.div layout className="flex items-center justify-center gap-2 md:gap-3 text-[clamp(1.1rem,4.5vw,2.4rem)] font-sans font-light text-white select-none h-[1.2em]">
                 <motion.span layout>i speak</motion.span>
                 <motion.div layout className="relative flex items-center justify-center">
                   <AnimatePresence mode="popLayout">
                     <motion.span
                       key={currentWord}
                       layout
-                      className="font-serif italic text-[28px] md:text-[45px] leading-none whitespace-nowrap"
+                      className="font-serif italic text-[clamp(1.3rem,5.5vw,2.8rem)] leading-none whitespace-nowrap"
                       initial={{ opacity: 0, y: 15 }}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: -15, position: 'absolute' }}
@@ -458,7 +461,7 @@ export default function Hero() {
           {!isClockMode && (
             <motion.div
               key="scroll-indicator"
-              className="absolute bottom-12 z-30 flex flex-col items-center gap-7 pointer-events-none"
+              className="absolute bottom-[calc(var(--safe-bottom)+2rem)] md:bottom-12 z-30 flex flex-col items-center gap-7 pointer-events-none"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1, transition: { duration: 1.5, delay: 3.5 } }}
               exit={{ opacity: 0, y: 20, transition: { duration: 0.8 } }}
@@ -492,7 +495,7 @@ export default function Hero() {
         <AnimatePresence>
           {isClockMode && gameStatus === 'playing' && (
             <motion.div
-              className="absolute top-10 left-10 right-10 flex flex-col md:flex-row justify-between items-start md:items-center pointer-events-none z-30"
+              className="absolute top-[calc(var(--safe-top)+1.5rem)] left-6 right-6 md:left-10 md:right-10 flex flex-col md:flex-row justify-between items-start md:items-center pointer-events-none z-30"
               initial={{ opacity: 0, y: -20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
@@ -553,7 +556,7 @@ export default function Hero() {
           {/* Boss Health Bar HUD */}
           {isClockMode && gameStatus === 'playing' && bossData.status === 'active' && (
             <motion.div
-              className="absolute bottom-10 left-10 right-10 flex flex-col items-center pointer-events-none z-30"
+              className="absolute bottom-[calc(var(--safe-bottom)+2rem)] md:bottom-10 left-6 right-6 md:left-10 md:right-10 flex flex-col items-center pointer-events-none z-30"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 20 }}

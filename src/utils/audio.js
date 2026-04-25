@@ -1,6 +1,8 @@
 import { WorkletSynthesizer, DEFAULT_SYNTH_CONFIG } from 'spessasynth_lib';
 import processorUrl from 'spessasynth_lib/dist/spessasynth_processor.min.js?url';
-import sf2Url from '../assets/soundfont/Roland_SC-55.sf2?url';
+
+// Soundfont is now in public/soundfont/
+const sf2Url = '/soundfont/Roland_SC-55.sf2';
 
 let synth = null;
 let audioCtx = null;
@@ -12,25 +14,45 @@ const initAudio = async () => {
   if (initPromise) return initPromise;
 
   initPromise = (async () => {
-    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    analyser = audioCtx.createAnalyser();
-    analyser.fftSize = 256;
-    analyser.connect(audioCtx.destination);
-    
-    await audioCtx.audioWorklet.addModule(processorUrl);
-    synth = new WorkletSynthesizer(audioCtx, DEFAULT_SYNTH_CONFIG);
-    synth.connect(analyser);
-    
-    const response = await fetch(sf2Url);
-    const data = await response.arrayBuffer();
-    await synth.soundBankManager.addSoundBank(data, 'gs-font');
-    await synth.isReady;
-    
-    if (audioCtx.state === 'suspended') {
-      await audioCtx.resume();
+    console.log('[Audio] Initializing synthesis engine...');
+    try {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 256;
+      analyser.connect(audioCtx.destination);
+      
+      console.log('[Audio] Loading processor from:', processorUrl);
+      if (!window.crossOriginIsolated) {
+        console.warn('[Audio] Site is NOT cross-origin isolated. SpessaSynth may have reduced performance. Check COOP/COEP headers.');
+      }
+
+      await audioCtx.audioWorklet.addModule(processorUrl);
+      console.log('[Audio] AudioWorklet module added.');
+
+      synth = new WorkletSynthesizer(audioCtx, DEFAULT_SYNTH_CONFIG);
+      synth.connect(analyser);
+      
+      console.log('[Audio] Fetching SoundFont (25MB)...', sf2Url);
+      const response = await fetch(sf2Url);
+      if (!response.ok) throw new Error(`SoundFont fetch failed: ${response.status} ${response.statusText}`);
+      
+      const data = await response.arrayBuffer();
+      console.log('[Audio] SoundFont loaded, adding to bank...');
+      await synth.soundBankManager.addSoundBank(data, 'gs-font');
+      
+      await synth.isReady;
+      console.log('[Audio] Synthesis engine ready.');
+      
+      if (audioCtx.state === 'suspended') {
+        await audioCtx.resume();
+      }
+      
+      return synth;
+    } catch (err) {
+      console.error('[Audio] Initialization failed:', err);
+      initPromise = null; // Allow retry
+      throw err;
     }
-    
-    return synth;
   })();
 
   return initPromise;

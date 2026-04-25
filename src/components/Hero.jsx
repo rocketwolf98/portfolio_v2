@@ -7,46 +7,172 @@ import HeroScene from './Three/HeroScene';
 
 import { Target } from 'lucide-react';
 import { playSound, startAmbient, stopAmbient } from '../utils/audio';
+import { useKonamiCode } from '../hooks/useKonamiCode';
+import MidiPlayerUI from './MidiPlayerUI';
+import { midiPlayer } from '../utils/midiPlayerEngine';
+
+// Depth layer config: index = depth (0=near, 1=mid, 2=far)
+const DEPTH_LAYERS = [
+  { speedMultiplier: 1.0, maxTranslate: 22, opacityBoost: 0.15, sizeBoost: 0.8 }, // near
+  { speedMultiplier: 0.5, maxTranslate: 12, opacityBoost: 0.0,  sizeBoost: 0.0 }, // mid
+  { speedMultiplier: 0.2, maxTranslate: 5,  opacityBoost: -0.1, sizeBoost: -0.3 }, // far
+];
 
 export const StarryBackground = ({ isClockMode = false }) => {
   const [stars, setStars] = useState([]);
+
+  // Refs for parallax layer DOM wrappers — one per depth (stable across renders)
+  const layerRef0 = useRef(null);
+  const layerRef1 = useRef(null);
+  const layerRef2 = useRef(null);
+  // Group into a stable ref so the effect closure always sees current DOM nodes
+  const layerRefsGroup = useRef([layerRef0, layerRef1, layerRef2]);
+
+  // Raw target offset (updated by event listeners, no re-render)
+  const targetOffset = useRef({ x: 0, y: 0 });
+  // Smoothed current offset (lerped in rAF loop)
+  const currentOffset = useRef({ x: 0, y: 0 });
+  const rafIdRef = useRef(null);
 
   useEffect(() => {
     const generated = Array.from({ length: 250 }).map((_, i) => {
       const isGalaxy = i >= 60;
       const colors = ['bg-white', 'bg-blue-300', 'bg-purple-300', 'bg-accent'];
+      // Assign depth deterministically so galaxy stars skew toward mid/far
+      const depth = i % 3; // 0=near, 1=mid, 2=far
+      const layer = DEPTH_LAYERS[depth];
       return {
         x: Math.random() * 100,
         y: Math.random() * 100,
-        size: Math.random() * (isGalaxy ? 3 : 2) + 1,
+        size: Math.random() * (isGalaxy ? 3 : 2) + 1 + layer.sizeBoost,
         duration: Math.random() * 3 + 2,
         delay: Math.random() * 2,
         color: isGalaxy ? colors[Math.floor(Math.random() * colors.length)] : 'bg-white',
+        depth,
       };
     });
     setStars(generated);
   }, []);
 
+  // Parallax animation loop + input listeners — only when isClockMode is on
+  useEffect(() => {
+    const layerRefs = layerRefsGroup.current;
+    if (!isClockMode) {
+      // Reset layers to origin when clock mode turns off
+      layerRefs.forEach(ref => {
+        if (ref.current) ref.current.style.transform = 'translate(0px, 0px)';
+      });
+      targetOffset.current = { x: 0, y: 0 };
+      currentOffset.current = { x: 0, y: 0 };
+      return;
+    }
+
+    const LERP_FACTOR = 0.06; // smoothing (lower = smoother/slower)
+
+    const tick = () => {
+      const cur = currentOffset.current;
+      const tgt = targetOffset.current;
+
+      // Lerp toward target
+      cur.x += (tgt.x - cur.x) * LERP_FACTOR;
+      cur.y += (tgt.y - cur.y) * LERP_FACTOR;
+
+      // Apply per-layer transform
+      layerRefs.forEach((ref, depth) => {
+        if (!ref.current) return;
+        const { speedMultiplier, maxTranslate } = DEPTH_LAYERS[depth];
+        const tx = Math.max(-maxTranslate, Math.min(maxTranslate, cur.x * speedMultiplier));
+        const ty = Math.max(-maxTranslate, Math.min(maxTranslate, cur.y * speedMultiplier));
+        ref.current.style.transform = `translate(${tx}px, ${ty}px)`;
+      });
+
+      rafIdRef.current = requestAnimationFrame(tick);
+    };
+    rafIdRef.current = requestAnimationFrame(tick);
+
+    // ── Desktop: mousemove ──────────────────────────────────────────────────
+    const handleMouseMove = (e) => {
+      const cx = window.innerWidth / 2;
+      const cy = window.innerHeight / 2;
+      // Normalize to [-1, 1] range, then scale to a base travel distance
+      targetOffset.current = {
+        x: ((e.clientX - cx) / cx) * -22,
+        y: ((e.clientY - cy) / cy) * -22,
+      };
+    };
+
+    // ── Mobile: deviceorientation ───────────────────────────────────────────
+    const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+    const handleOrientation = (e) => {
+      // gamma = left/right tilt (-90..90), beta = front/back (-180..180)
+      const gammaRaw = e.gamma ?? 0;
+      const betaRaw  = (e.beta ?? 0) - 45; // subtract 45° typical hold angle
+      const gamma = clamp(gammaRaw, -30, 30);
+      const beta  = clamp(betaRaw,  -30, 30);
+      targetOffset.current = {
+        x: (gamma / 30) * -22,
+        y: (beta  / 30) * -22,
+      };
+    };
+
+    const isMobile = window.matchMedia('(pointer: coarse)').matches;
+    if (isMobile) {
+      window.addEventListener('deviceorientation', handleOrientation, { passive: true });
+    } else {
+      window.addEventListener('mousemove', handleMouseMove, { passive: true });
+    }
+
+    return () => {
+      cancelAnimationFrame(rafIdRef.current);
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('deviceorientation', handleOrientation);
+      // Snap layers back to origin on cleanup
+      layerRefs.forEach(ref => {
+        if (ref.current) ref.current.style.transform = 'translate(0px, 0px)';
+      });
+      targetOffset.current = { x: 0, y: 0 };
+      currentOffset.current = { x: 0, y: 0 };
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isClockMode]);
+
+  // Group stars by depth for rendering
+  const starsByDepth = [[], [], []];
+  stars.forEach((star, i) => {
+    starsByDepth[star.depth ?? 1].push({ star, i });
+  });
+
+  const jsxLayerRefs = [layerRef0, layerRef1, layerRef2];
+
   return (
     <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
-      {stars.map((star, i) => {
-        const isVisible = i < 60 || isClockMode;
-        return (
-          <div
-            key={i}
-            className={`absolute rounded-full ${star.color}`}
-            style={{
-              left: `${star.x}%`,
-              top: `${star.y}%`,
-              width: star.size,
-              height: star.size,
-              opacity: 0,
-              animation: isVisible ? `twinkle ${star.duration}s ease-in-out ${star.delay}s infinite` : 'none',
-              willChange: 'opacity'
-            }}
-          />
-        );
-      })}
+      {/* Render each depth layer in its own wrapper div for cheap transform */}
+      {starsByDepth.map((group, depth) => (
+        <div
+          key={depth}
+          ref={jsxLayerRefs[depth]}
+          style={{ position: 'absolute', inset: '-5%', willChange: 'transform' }}
+        >
+          {group.map(({ star, i }) => {
+            const isVisible = i < 60 || isClockMode;
+            return (
+              <div
+                key={i}
+                className={`absolute rounded-full ${star.color}`}
+                style={{
+                  left: `${star.x}%`,
+                  top: `${star.y}%`,
+                  width: Math.max(0.5, star.size),
+                  height: Math.max(0.5, star.size),
+                  opacity: 0,
+                  animation: isVisible ? `twinkle ${star.duration}s ease-in-out ${star.delay}s infinite` : 'none',
+                  willChange: 'opacity'
+                }}
+              />
+            );
+          })}
+        </div>
+      ))}
 
       {/* Extra Galaxy Dust for Clock Mode */}
       <AnimatePresence>
@@ -82,7 +208,12 @@ export default function Hero() {
 
   const [logoClicks, setLogoClicks] = useState(0);
   const [isClockMode, setIsClockMode] = useState(false);
+  const [isMidiMode, setIsMidiMode] = useState(false);
+  const [isMidiWarping, setIsMidiWarping] = useState(false);
   const [time, setTime] = useState(new Date());
+  
+  // MIDI Player data for Three.js
+  const [midiData, setMidiData] = useState({ time: 0, duration: 0, playlistIndex: -1, playlistLength: 0 });
 
   const [isIdle, setIsIdle] = useState(false);
   const idleTimerRef = useRef(null);
@@ -98,11 +229,58 @@ export default function Hero() {
   const galaxyColors = ['#ff3333', '#33ff33', '#3355ff', '#ff33aa', '#ffff33'];
   const [galaxyLevel, setGalaxyLevel] = useState(0);
 
+  // Konami Code to unlock MIDI Player Mode
+  useKonamiCode(() => {
+    if (isClockMode && !isMidiMode) {
+      setIsMidiMode(true);
+      setGameStatus('idle'); // Pause/hide game when entering MIDI mode
+      playSound('start'); // Positive feedback
+    }
+  });
+
+  useEffect(() => {
+    if (isMidiMode) {
+      midiPlayer.init(); // Start loading immediately
+      const handleTimeUpdate = (time, duration) => setMidiData(prev => ({ ...prev, time, duration }));
+      const handlePlaylistChange = (playlist, index) => setMidiData(prev => ({ ...prev, playlistLength: playlist.length, playlistIndex: index }));
+      const handleTrackWarping = () => {
+        setIsMidiWarping(true);
+        playSound('warp');
+        setTimeout(() => {
+          setIsMidiWarping(false);
+          setGalaxyLevel(prev => (prev + 1) % galaxyColors.length);
+        }, 4000);
+      };
+      
+      midiPlayer.on('timeUpdate', handleTimeUpdate);
+      midiPlayer.on('playlistChange', handlePlaylistChange);
+      midiPlayer.on('trackWarping', handleTrackWarping);
+      
+      stopAmbient();
+      
+      return () => {
+        midiPlayer.off('timeUpdate', handleTimeUpdate);
+        midiPlayer.off('playlistChange', handlePlaylistChange);
+        midiPlayer.off('trackWarping', handleTrackWarping);
+        midiPlayer.stop();
+        setIsMidiWarping(false);
+        if (isClockMode) {
+          // Stay silent even after MIDI mode exit
+        }
+      };
+    } else {
+      setMidiData({ time: 0, duration: 0, playlistIndex: -1, playlistLength: 0 });
+      if (isClockMode) {
+        // Stay silent even after MIDI mode exit
+      }
+    }
+  }, [isMidiMode, isClockMode]);
+
   useEffect(() => {
     let int;
     if (isClockMode) {
       int = setInterval(() => setTime(new Date()), 1000);
-      startAmbient();
+      if (!isMidiMode) startAmbient();
     } else {
       stopAmbient();
       setGameStatus('idle');
@@ -182,6 +360,7 @@ export default function Hero() {
       if (window.scrollY > window.innerHeight * 0.5) {
         setEasterEggActive(false);
         setIsClockMode(false);
+        setIsMidiMode(false);
         setGameStatus('idle');
         setLogoClicks(0);
         if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
@@ -192,6 +371,7 @@ export default function Hero() {
       if (e.key === 'Escape' && isClockMode) {
         setEasterEggActive(false);
         setIsClockMode(false);
+        setIsMidiMode(false);
         setGameStatus('idle');
         setLogoClicks(0);
       }
@@ -203,6 +383,29 @@ export default function Hero() {
       window.removeEventListener('scroll', handleScroll);
       window.removeEventListener('keydown', handleKeyDown);
       if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+    };
+  }, [isClockMode]);
+
+  // Disable scrolling on desktop when easter egg is active
+  useEffect(() => {
+    const preventDefault = (e) => {
+      const keys = ['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'PageUp', 'PageDown', 'Home', 'End', ' '];
+      if (keys.includes(e.key) || keys.includes(e.code)) {
+        e.preventDefault();
+      }
+    };
+
+    if (isClockMode && window.innerWidth >= 768) {
+      document.body.style.overflow = 'hidden';
+      window.addEventListener('keydown', preventDefault, { passive: false });
+    } else {
+      document.body.style.overflow = '';
+      window.removeEventListener('keydown', preventDefault);
+    }
+    
+    return () => {
+      document.body.style.overflow = '';
+      window.removeEventListener('keydown', preventDefault);
     };
   }, [isClockMode]);
 
@@ -227,6 +430,7 @@ export default function Hero() {
   }, []);
 
   const handleShoot = () => {
+    if (isMidiMode) return; // Disable shooting in MIDI mode
     if (gameStatus === 'idle' && isClockMode) {
       setGameStatus('playing');
       setScore(0);
@@ -320,6 +524,9 @@ export default function Hero() {
         {/* 3D Scene */}
         <HeroScene
           isClockMode={isClockMode}
+          isMidiMode={isMidiMode}
+          isMidiWarping={isMidiWarping}
+          midiData={midiData}
           time={time}
           gameStatus={gameStatus}
           score={score}
@@ -438,7 +645,11 @@ export default function Hero() {
 
         {/* HTML Game Over and HUD */}
         <AnimatePresence>
-          {isClockMode && gameStatus === 'playing' && (
+          {isMidiMode && (
+            <MidiPlayerUI isIdle={isIdle} />
+          )}
+
+          {isClockMode && !isMidiMode && gameStatus === 'playing' && (
             <motion.div
               className="absolute top-[calc(var(--safe-top)+1.5rem)] left-6 right-6 md:left-10 md:right-10 flex flex-col md:flex-row justify-between items-start md:items-center pointer-events-none z-30"
               initial={{ opacity: 0, y: -20 }}
@@ -465,7 +676,7 @@ export default function Hero() {
           )}
 
           {/* Boss Warning Screen */}
-          {isClockMode && gameStatus === 'playing' && bossData.status === 'warning' && (
+          {isClockMode && !isMidiMode && gameStatus === 'playing' && bossData.status === 'warning' && (
             <motion.div
               className="absolute inset-0 z-40 flex flex-col items-center justify-center pointer-events-none"
               initial={{ opacity: 0 }}
@@ -499,7 +710,7 @@ export default function Hero() {
           )}
 
           {/* Boss Health Bar HUD */}
-          {isClockMode && gameStatus === 'playing' && bossData.status === 'active' && (
+          {isClockMode && !isMidiMode && gameStatus === 'playing' && bossData.status === 'active' && (
             <motion.div
               className="absolute bottom-[calc(var(--safe-bottom)+2rem)] md:bottom-10 left-6 right-6 md:left-10 md:right-10 flex flex-col items-center pointer-events-none z-30"
               initial={{ opacity: 0, y: 20 }}
@@ -521,7 +732,7 @@ export default function Hero() {
           )}
 
           {/* Game Over Screen */}
-          {isClockMode && gameStatus === 'gameover' && (
+          {isClockMode && !isMidiMode && gameStatus === 'gameover' && (
             <motion.div
               className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-black/80 backdrop-blur-sm pointer-events-auto cursor-pointer"
               initial={{ opacity: 0 }}

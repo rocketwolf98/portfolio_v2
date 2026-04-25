@@ -8,8 +8,61 @@ import { useEffect, useRef } from 'react';
 
 import AsteroidManager from './AsteroidManager';
 import StarWarp from './StarWarp';
+import { getAnalyser } from '../../utils/audio';
 
-export default function HeroScene({ isClockMode, isFooter = false, time, gameStatus, score, lives, bossData, setBossData, galaxyColor = "#ff3333", onHit, onMiss, onRetry }) {
+function VisualizerStars({ isMidiMode, isMobile, isWarping }) {
+  const groupRef = useRef();
+  const analyserRef = useRef(null);
+  const dataArrayRef = useRef(null);
+  // Tracks current rotation speed — lerped up on warp, bled back down after
+  const driftSpeedRef = useRef(0.018);
+
+  useEffect(() => {
+    if (isMidiMode) {
+      getAnalyser().then(analyser => {
+        if (analyser) {
+          analyserRef.current = analyser;
+          dataArrayRef.current = new Uint8Array(analyser.frequencyBinCount);
+        }
+      });
+    }
+  }, [isMidiMode]);
+
+  useFrame((state, delta) => {
+    if (!groupRef.current) return;
+
+    // Ramp up fast on warp, bleed back slowly — asymmetric lerp for acceleration feel
+    const targetSpeed = isWarping ? 3.5 : 0.018;
+    const lerpFactor = isWarping ? 0.04 : 0.008;
+    driftSpeedRef.current += (targetSpeed - driftSpeedRef.current) * lerpFactor;
+
+    // Apply ramped drift + gentle pitch undulation
+    groupRef.current.rotation.y += delta * driftSpeedRef.current;
+    groupRef.current.rotation.x = Math.sin(state.clock.elapsedTime * 0.07) * 0.04;
+
+    if (isMidiMode && analyserRef.current && dataArrayRef.current) {
+      analyserRef.current.getByteFrequencyData(dataArrayRef.current);
+      // Average the lower frequencies for bass pulse
+      let sum = 0;
+      for (let i = 0; i < 10; i++) sum += dataArrayRef.current[i];
+      const avg = sum / 10;
+
+      // Scale from 1 to 1.3 based on bass
+      const scale = 1 + (avg / 255) * 0.3;
+      groupRef.current.scale.lerp(new THREE.Vector3(scale, scale, scale), 0.2);
+    } else {
+      groupRef.current.scale.lerp(new THREE.Vector3(1, 1, 1), 0.1);
+    }
+  });
+
+  return (
+    <group ref={groupRef}>
+      <Stars radius={100} depth={50} count={isMobile ? 1500 : 5000} factor={4} saturation={1} fade speed={2} />
+    </group>
+  );
+}
+
+export default function HeroScene({ isClockMode, isMidiMode, isMidiWarping, midiData, isFooter = false, time, gameStatus, score, lives, bossData, setBossData, galaxyColor = "#ff3333", onHit, onMiss, onRetry }) {
   const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
 
   return (
@@ -47,15 +100,19 @@ export default function HeroScene({ isClockMode, isFooter = false, time, gameSta
         {/* Easter Egg Stars & Vectors */}
         {isClockMode && (
           <>
-            <Stars radius={100} depth={50} count={isMobile ? 1500 : 5000} factor={4} saturation={1} fade speed={2} />
-            <StarWarp active={bossData?.status === 'defeated'} />
-            <LaserManager gameStatus={gameStatus} />
-            <AsteroidManager gameStatus={gameStatus} score={score} bossData={bossData} setBossData={setBossData} onHit={onHit} onMiss={onMiss} />
+            <VisualizerStars isMidiMode={isMidiMode} isMobile={isMobile} isWarping={bossData?.status === 'defeated' || isMidiWarping} />
+            <StarWarp active={bossData?.status === 'defeated' || isMidiWarping} />
+            {!isMidiMode && (
+              <>
+                <LaserManager gameStatus={gameStatus} />
+                <AsteroidManager gameStatus={gameStatus} score={score} bossData={bossData} setBossData={setBossData} onHit={onHit} onMiss={onMiss} />
+              </>
+            )}
           </>
         )}
         
         {/* Always render Planetary System (it handles its own transition) */}
-        <PlanetarySystem isClockMode={isClockMode} time={time} isFooter={isFooter} color={galaxyColor} isWarping={bossData?.status === 'defeated'} />
+        <PlanetarySystem isClockMode={isClockMode} isMidiMode={isMidiMode} midiData={midiData} time={time} isFooter={isFooter} color={galaxyColor} isWarping={bossData?.status === 'defeated' || isMidiWarping} />
         
         <EffectComposer multisampling={0} disableNormalPass>
           <Bloom luminanceThreshold={0.5} luminanceSmoothing={0.9} height={200} />

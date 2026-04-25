@@ -1,9 +1,10 @@
 import { WorkletSynthesizer, DEFAULT_SYNTH_CONFIG } from 'spessasynth_lib';
 import processorUrl from 'spessasynth_lib/dist/spessasynth_processor.min.js?url';
-import sf2Url from '../assets/soundfont/GeneralUser GS 1.35.sf2?url';
+import sf2Url from '../assets/soundfont/Roland_SC-55.sf2?url';
 
 let synth = null;
 let audioCtx = null;
+let analyser = null;
 let initPromise = null;
 let ambientInterval = null;
 
@@ -12,9 +13,13 @@ const initAudio = async () => {
 
   initPromise = (async () => {
     audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    analyser = audioCtx.createAnalyser();
+    analyser.fftSize = 256;
+    analyser.connect(audioCtx.destination);
+    
     await audioCtx.audioWorklet.addModule(processorUrl);
     synth = new WorkletSynthesizer(audioCtx, DEFAULT_SYNTH_CONFIG);
-    synth.connect(audioCtx.destination);
+    synth.connect(analyser);
     
     const response = await fetch(sf2Url);
     const data = await response.arrayBuffer();
@@ -29,6 +34,21 @@ const initAudio = async () => {
   })();
 
   return initPromise;
+};
+
+export const getAudioContext = async () => {
+  await initAudio();
+  return audioCtx;
+};
+
+export const getSynth = async () => {
+  await initAudio();
+  return synth;
+};
+
+export const getAnalyser = async () => {
+  await initAudio();
+  return analyser;
 };
 
 export const startAmbient = async () => {

@@ -1,8 +1,9 @@
-import { useRef, useMemo } from 'react';
+import { useRef, useMemo, useEffect } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
+import { getAnalyser } from '../../utils/audio';
 
-export default function PlanetarySystem({ isClockMode, isFooter, color = "#ff3333", isWarping = false }) {
+export default function PlanetarySystem({ isClockMode, isMidiMode, midiData, isFooter, color = "#ff3333", isWarping = false }) {
   const groupRef = useRef();
   const { mouse, viewport } = useThree();
 
@@ -51,6 +52,8 @@ export default function PlanetarySystem({ isClockMode, isFooter, color = "#ff333
           speed={orbit.speed} 
           planetRadius={orbit.planetRadius} 
           isClockMode={isClockMode} 
+          isMidiMode={isMidiMode}
+          midiData={midiData}
           color={color}
           isWarping={isWarping}
         />
@@ -59,7 +62,7 @@ export default function PlanetarySystem({ isClockMode, isFooter, color = "#ff333
   );
 }
 
-function OrbitSystem({ index, distance, speed, planetRadius, isClockMode, color, isWarping }) {
+function OrbitSystem({ index, distance, speed, planetRadius, isClockMode, isMidiMode, midiData, color, isWarping }) {
   const planetRef = useRef();
   const ringRef = useRef();
   const groupRef = useRef();
@@ -67,6 +70,23 @@ function OrbitSystem({ index, distance, speed, planetRadius, isClockMode, color,
   const planetMatRef = useRef();
   const { mouse } = useThree();
   const targetColor = useMemo(() => new THREE.Color(color), [color]);
+  
+  const targetAngleRef = useRef(-Math.PI / 2);
+  const currentAngleRef = useRef(-Math.PI / 2);
+  
+  const analyserRef = useRef(null);
+  const dataArrayRef = useRef(null);
+
+  useEffect(() => {
+    if (isMidiMode) {
+      getAnalyser().then(analyser => {
+        if (analyser) {
+          analyserRef.current = analyser;
+          dataArrayRef.current = new Uint8Array(analyser.frequencyBinCount);
+        }
+      });
+    }
+  }, [isMidiMode]);
 
   const orbitCurve = useMemo(() => {
     const curve = new THREE.EllipseCurve(
@@ -90,6 +110,30 @@ function OrbitSystem({ index, distance, speed, planetRadius, isClockMode, color,
 
       // Revolve planet slowly
       let angle = state.clock.elapsedTime * speed;
+      
+      if (isMidiMode && midiData) {
+        if (index === 0) {
+          // Inner: seconds
+          const targetAngle = (midiData.time % 60) / 60 * 2 * Math.PI - Math.PI / 2;
+          // Smoothly lerp towards target to hide the 100ms update steps
+          currentAngleRef.current = THREE.MathUtils.lerp(currentAngleRef.current, targetAngle, 0.1);
+          angle = currentAngleRef.current;
+        } else if (index === 1) {
+          // Middle: minutes
+          angle = Math.floor(midiData.time / 60) / 60 * 2 * Math.PI - Math.PI / 2;
+          currentAngleRef.current = angle;
+        } else if (index === 2) {
+          // Outer: playlist
+          if (midiData.playlistLength > 0 && midiData.playlistIndex >= 0) {
+            targetAngleRef.current = (midiData.playlistIndex / midiData.playlistLength) * 2 * Math.PI - Math.PI / 2;
+          } else {
+            targetAngleRef.current = -Math.PI / 2;
+          }
+          currentAngleRef.current = THREE.MathUtils.lerp(currentAngleRef.current, targetAngleRef.current, 0.05);
+          angle = currentAngleRef.current;
+        }
+      }
+
       planetRef.current.position.x = Math.cos(angle) * distance;
       planetRef.current.position.y = Math.sin(angle) * distance;
     }
@@ -111,7 +155,19 @@ function OrbitSystem({ index, distance, speed, planetRadius, isClockMode, color,
       } else {
         // Reset local position/scale during Clock Mode
         groupRef.current.position.lerp(new THREE.Vector3(0, 0, 0), 0.05);
-        groupRef.current.scale.lerp(new THREE.Vector3(1, 1, 1), 0.05);
+        
+        // Audio beat pulsing
+        if (isMidiMode && analyserRef.current && dataArrayRef.current) {
+          // Inner: Bass, Middle: Mid, Outer: High
+          const start = index * 20;
+          let sum = 0;
+          for (let i = start; i < start + 20; i++) sum += dataArrayRef.current[i];
+          const avg = sum / 20;
+          const pulseScale = 1 + (avg / 255) * 0.2;
+          groupRef.current.scale.lerp(new THREE.Vector3(pulseScale, pulseScale, pulseScale), 0.2);
+        } else {
+          groupRef.current.scale.lerp(new THREE.Vector3(1, 1, 1), 0.05);
+        }
         
         if (isWarping) {
           // Spin erratically during warp!
@@ -140,10 +196,32 @@ function OrbitSystem({ index, distance, speed, planetRadius, isClockMode, color,
       }
     }
     
-    // Planet smooth color lerp
+    // Planet smooth color lerp and audio pulse
     if (planetMatRef.current && isClockMode) {
       planetMatRef.current.color.lerp(targetColor, 0.05);
       planetMatRef.current.emissive.lerp(targetColor, 0.05);
+      
+      if (isMidiMode && analyserRef.current && dataArrayRef.current) {
+        analyserRef.current.getByteFrequencyData(dataArrayRef.current);
+        
+        // Different rings react to different frequency bands
+        // index 0 (inner): Bass (low)
+        // index 1 (middle): Mid
+        // index 2 (outer): High
+        const start = index * 20;
+        let sum = 0;
+        for (let i = start; i < start + 20; i++) sum += dataArrayRef.current[i];
+        const avg = sum / 20;
+        
+        const boost = (avg / 255);
+        planetMatRef.current.emissiveIntensity = THREE.MathUtils.lerp(planetMatRef.current.emissiveIntensity, 1 + boost * 15, 0.2);
+        
+        if (materialRef.current) {
+          materialRef.current.opacity = THREE.MathUtils.lerp(materialRef.current.opacity, 0.2 + boost * 0.8, 0.2);
+        }
+      } else {
+        planetMatRef.current.emissiveIntensity = THREE.MathUtils.lerp(planetMatRef.current.emissiveIntensity, 1, 0.1);
+      }
     }
   });
 

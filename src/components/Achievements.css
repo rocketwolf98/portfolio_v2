@@ -1,0 +1,66 @@
+@keyframes orbit-1 {
+  from { transform: rotate(0deg) translateX(150px) rotate(0deg); }
+  to { transform: rotate(360deg) translateX(150px) rotate(-360deg); }
+}
+
+@keyframes orbit-2 {
+  from { transform: rotate(0deg) translateX(-120px) rotate(0deg); }
+  to { transform: rotate(360deg) translateX(-120px) rotate(-360deg); }
+}
+
+@keyframes pulse-glow {
+  0%, 100% { opacity: 0.4; transform: scale(1); }
+  50% { opacity: 0.7; transform: scale(1.1); }
+}
+
+.achievement-glow {
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+  will-change: transform, opacity;
+  backface-visibility: hidden;
+  transform: translateZ(0);
+  z-index: 1;
+}
+
+.glow-1 {
+  width: 60vw;
+  height: 60vw;
+  max-width: 600px;
+  max-height: 600px;
+  background: radial-gradient(circle, rgba(255, 85, 69, 0.4) 0%, transparent 70%);
+  filter: blur(60px);
+  left: 50%;
+  top: 50%;
+  margin-left: -300px;
+  margin-top: -300px;
+  animation: orbit-1 25s linear infinite, pulse-glow 8s ease-in-out infinite;
+}
+
+.glow-2 {
+  width: 50vw;
+  height: 50vw;
+  max-width: 500px;
+  max-height: 500px;
+  background: radial-gradient(circle, rgba(255, 85, 69, 0.3) 0%, transparent 70%);
+  filter: blur(50px);
+  left: 50%;
+  top: 50%;
+  margin-left: -250px;
+  margin-top: -250px;
+  animation: orbit-2 20s linear infinite reverse, pulse-glow 10s ease-in-out infinite;
+}
+
+.glow-3 {
+  width: 70vw;
+  height: 70vw;
+  max-width: 700px;
+  max-height: 700px;
+  background: radial-gradient(circle, rgba(255, 85, 69, 0.2) 0%, transparent 70%);
+  filter: blur(80px);
+  left: 50%;
+  top: 50%;
+  margin-left: -350px;
+  margin-top: -350px;
+  animation: pulse-glow 15s ease-in-out infinite;
+}

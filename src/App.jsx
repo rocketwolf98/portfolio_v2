@@ -3,6 +3,7 @@ import { motion, useScroll, useTransform } from 'framer-motion'
 import Navigation from './components/Navigation'
 import Hero from './components/Hero'
 import About from './components/About'
+import Achievements from './components/Achievements'
 import Projects from './components/Projects'
 import Graphics from './components/Graphics'
 import Footer from './components/Footer'
@@ -54,6 +55,7 @@ function App() {
         <Navigation />
         <Hero />
         <About />
+        <Achievements />
         <Projects />
         <Graphics />
 

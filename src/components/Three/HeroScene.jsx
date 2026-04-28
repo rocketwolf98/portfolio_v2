@@ -102,12 +102,17 @@ export default function HeroScene({ isClockMode, isMidiMode, isMidiWarping, midi
           <>
             <VisualizerStars isMidiMode={isMidiMode} isMobile={isMobile} isWarping={bossData?.status === 'defeated' || isMidiWarping} />
             <StarWarp active={bossData?.status === 'defeated' || isMidiWarping} />
-            {!isMidiMode && (
-              <>
-                <LaserManager gameStatus={gameStatus} />
-                <AsteroidManager gameStatus={gameStatus} score={score} bossData={bossData} setBossData={setBossData} onHit={onHit} onMiss={onMiss} />
-              </>
-            )}
+            {!isMidiMode && <LaserManager gameStatus={gameStatus} />}
+            <AsteroidManager 
+              gameStatus={gameStatus} 
+              score={score} 
+              bossData={bossData} 
+              setBossData={setBossData} 
+              onHit={isMidiMode ? (points, pos) => { playSound('laser', pos); setTimeout(() => playSound('boom', pos), 50); } : onHit} 
+              onMiss={isMidiMode ? null : onMiss}
+              isAmbient={isMidiMode} 
+              isWarping={bossData?.status === 'defeated' || isMidiWarping}
+            />
           </>
         )}
         

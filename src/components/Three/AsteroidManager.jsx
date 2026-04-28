@@ -3,7 +3,7 @@ import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { playSound } from '../../utils/audio';
 
-export default function AsteroidManager({ gameStatus, score, bossData, setBossData, onHit, onMiss }) {
+export default function AsteroidManager({ gameStatus, score, bossData, setBossData, onHit, onMiss, isAmbient = false, isWarping = false }) {
   const [asteroids, setAsteroids] = useState([]);
   const asteroidsRef = useRef([]);
   const lastSpawnRef = useRef(0);
@@ -13,7 +13,7 @@ export default function AsteroidManager({ gameStatus, score, bossData, setBossDa
 
   useEffect(() => {
     playStateRef.current = { gameStatus, score, bossData };
-    if (gameStatus === 'idle' || gameStatus === 'gameover') {
+    if (!isAmbient && (gameStatus === 'idle' || gameStatus === 'gameover')) {
       setAsteroids([]);
       asteroidsRef.current = [];
       lastSpawnRef.current = 0;
@@ -21,16 +21,36 @@ export default function AsteroidManager({ gameStatus, score, bossData, setBossDa
       warningTimer.current = 0;
       setBossData?.({ status: 'inactive', hp: 0, maxHp: 0, name: '' });
     }
-  }, [gameStatus, score, bossData, setBossData]);
+  }, [gameStatus, score, bossData, setBossData, isAmbient]);
 
   useFrame((state, delta) => {
-    if (playStateRef.current.gameStatus === 'playing') {
+    if (isWarping) {
+      // Rapidly clear asteroids on warp
+      if (asteroidsRef.current.length > 0) {
+        asteroidsRef.current.forEach(a => {
+          if (isAmbient) {
+            // Fading is handled in the Asteroid component, but we should eventually deactivate them
+            if (a.position.x > 60 || a.position.x < -60) a.active = false;
+          } else {
+            a.active = false;
+          }
+        });
+        const filtered = asteroidsRef.current.filter(a => a.active);
+        if (filtered.length !== asteroidsRef.current.length) {
+          asteroidsRef.current = filtered;
+          setAsteroids(filtered);
+        }
+      }
+      return;
+    }
+
+    if (playStateRef.current.gameStatus === 'playing' || isAmbient) {
       const currentScore = playStateRef.current.score;
       const hasBoss = asteroidsRef.current.some(a => a.isBoss && a.active);
 
       // Spawner logic
       if (!hasBoss) {
-        if (playStateRef.current.bossData?.status !== 'warning' && playStateRef.current.bossData?.status !== 'defeated' && currentScore >= (bossesSpawned.current + 1) * 3000) {
+        if (!isAmbient && playStateRef.current.bossData?.status !== 'warning' && playStateRef.current.bossData?.status !== 'defeated' && currentScore >= (bossesSpawned.current + 1) * 3000) {
           // ENTER WARNING PHASE
           bossesSpawned.current += 1;
           setBossData?.({ status: 'warning', hp: 0, maxHp: 0, name: '' });
@@ -42,7 +62,7 @@ export default function AsteroidManager({ gameStatus, score, bossData, setBossDa
           asteroidsRef.current.forEach(a => a.active = false);
           setAsteroids([...asteroidsRef.current]);
 
-        } else if (playStateRef.current.bossData?.status === 'warning') {
+        } else if (!isAmbient && playStateRef.current.bossData?.status === 'warning') {
           // COUNTDOWN WARNING
           warningTimer.current -= delta;
           if (warningTimer.current <= 0) {
@@ -83,48 +103,84 @@ export default function AsteroidManager({ gameStatus, score, bossData, setBossDa
             asteroidsRef.current = [...asteroidsRef.current, bossAst];
             setAsteroids(asteroidsRef.current);
           }
-        } else if (playStateRef.current.bossData?.status !== 'defeated' && state.clock.elapsedTime - lastSpawnRef.current > 1.5) {
-          // Spawn Normal Asteroids
-        lastSpawnRef.current = state.clock.elapsedTime;
-        const level = bossesSpawned.current;
-        
-        // Spawn roughly inside a cone visible to the camera
-        const startX = (Math.random() - 0.5) * 60;
-        const startY = (Math.random() - 0.5) * 60 + 5;
-        const startZ = -150;
+        } else if (isAmbient) {
+          // Ambient mode: horizontal fly-throughs
+          const spawnInterval = 3 + Math.random() * 5;
+          if (state.clock.elapsedTime - lastSpawnRef.current > spawnInterval) {
+            lastSpawnRef.current = state.clock.elapsedTime;
+            
+            const fromLeft = Math.random() > 0.5;
+            const startX = fromLeft ? -45 : 45;
+            const targetX = fromLeft ? 45 : -45;
+            
+            const startY = (Math.random() - 0.5) * 40;
+            const startZ = Math.random() * -60 - 10; // Varied depth behind/in-front
+            
+            const startPos = new THREE.Vector3(startX, startY, startZ);
+            const targetZ = startZ + (Math.random() - 0.5) * 40; // Subtle Z drift
+            const targetPos = new THREE.Vector3(targetX, startY + (Math.random() - 0.5) * 10, targetZ);
+            
+            const velocity = targetPos.clone().sub(startPos).normalize().multiplyScalar(Math.random() * 4 + 6);
 
-        const targetX = (Math.random() - 0.5) * 4;
-        const targetY = 5 + (Math.random() - 0.5) * 4;
-        const targetZ = 15;
+            const newAsteroid = {
+              id: Date.now() + Math.random(),
+              isBoss: false,
+              position: startPos,
+              velocity: velocity,
+              spawnTime: state.clock.elapsedTime,
+              rotationSpeed: new THREE.Vector3(
+                Math.random() * 0.8,
+                Math.random() * 0.8,
+                Math.random() * 0.8
+              ),
+              scale: Math.random() * 1.5 + 1.0,
+              active: true,
+              isArmored: false,
+              hp: 1
+            };
+            
+            asteroidsRef.current = [...asteroidsRef.current, newAsteroid];
+            setAsteroids(asteroidsRef.current);
+          }
+        } else {
+          // Spawn Normal Asteroids (Playing mode)
+          if (state.clock.elapsedTime - lastSpawnRef.current > 1.5) {
+            lastSpawnRef.current = state.clock.elapsedTime;
+            const level = bossesSpawned.current;
+            
+            const startX = (Math.random() - 0.5) * 60;
+            const startY = (Math.random() - 0.5) * 60 + 5;
+            const startZ = -150;
 
-        const startPos = new THREE.Vector3(startX, startY, startZ);
-        const targetPos = new THREE.Vector3(targetX, targetY, targetZ);
-        
-        const velocityMultiplier = 1 + (level * 0.2); // Speed ramps up 20% per level
-        const velocity = targetPos.clone().sub(startPos).normalize().multiplyScalar((Math.random() * 30 + 40) * velocityMultiplier);
-        
-        const armoredChance = level > 0 ? Math.min(0.5, level * 0.15) : 0;
-        const isArmored = Math.random() < armoredChance;
+            const targetX = (Math.random() - 0.5) * 4;
+            const targetY = 5 + (Math.random() - 0.5) * 4;
+            const targetZ = 15;
 
-        const newAsteroid = {
-          id: Date.now() + Math.random(),
-          isBoss: false,
-          position: startPos,
-          velocity: velocity,
-          rotationSpeed: new THREE.Vector3(
-            Math.random() * 2,
-            Math.random() * 2,
-            Math.random() * 2
-          ),
-          scale: Math.random() * 1.5 + 0.5,
-          active: true,
-          isArmored,
-          hp: isArmored ? 2 : 1
-        };
-        
-        asteroidsRef.current = [...asteroidsRef.current, newAsteroid];
-        setAsteroids(asteroidsRef.current);
-      }
+            const startPos = new THREE.Vector3(startX, startY, startZ);
+            const targetPos = new THREE.Vector3(targetX, targetY, targetZ);
+            
+            const velocityMultiplier = 1 + (level * 0.2);
+            const velocity = targetPos.clone().sub(startPos).normalize().multiplyScalar((Math.random() * 30 + 40) * velocityMultiplier);
+            
+            const armoredChance = level > 0 ? Math.min(0.5, level * 0.15) : 0;
+            const isArmored = Math.random() < armoredChance;
+
+            const newAsteroid = {
+              id: Date.now() + Math.random(),
+              isBoss: false,
+              position: startPos,
+              velocity: velocity,
+              rotationSpeed: new THREE.Vector3(Math.random() * 2, Math.random() * 2, Math.random() * 2),
+              scale: Math.random() * 1.5 + 0.5,
+              active: true,
+              isArmored,
+              hp: isArmored ? 2 : 1
+            };
+            
+            asteroidsRef.current = [...asteroidsRef.current, newAsteroid];
+            setAsteroids(asteroidsRef.current);
+          }
+        }
       } // End of !hasBoss Spawner logic
 
       // Movement and Miss detection
@@ -138,10 +194,14 @@ export default function AsteroidManager({ gameStatus, score, bossData, setBossDa
         ast.position.addScaledVector(ast.velocity, delta);
 
         // Camera is at Z = 15. If asteroid passes Z = 15, it's a miss
-        if (ast.position.z > 15) {
+        // For ambient mode, we also check X bounds
+        const isPastZ = ast.position.z > 15;
+        const isPastX = Math.abs(ast.position.x) > 50;
+
+        if (isPastZ || (isAmbient && isPastX)) {
           ast.active = false;
           needsUpdate = true;
-          onMiss?.();
+          if (!isAmbient && isPastZ) onMiss?.();
         }
       }
 
@@ -154,6 +214,7 @@ export default function AsteroidManager({ gameStatus, score, bossData, setBossDa
   });
 
   const handleHit = (id, e) => {
+    if (isAmbient) return;
     e.stopPropagation();
     if (playStateRef.current.gameStatus !== 'playing') return;
 
@@ -194,13 +255,15 @@ export default function AsteroidManager({ gameStatus, score, bossData, setBossDa
           key={ast.id} 
           data={ast} 
           onClick={(e) => handleHit(ast.id, e)} 
+          isAmbient={isAmbient}
+          isWarping={isWarping}
         />
       ))}
     </group>
   );
 }
 
-function Asteroid({ data, onClick }) {
+function Asteroid({ data, onClick, isAmbient, isWarping }) {
   const meshRef = useRef();
   const fragmentsRef = useRef();
   const materialRef = useRef();
@@ -236,6 +299,20 @@ function Asteroid({ data, onClick }) {
         }
       }
 
+      // Smooth opacity for ambient asteroids
+      if (isAmbient && materialRef.current) {
+        // Fade in when entering from sides (-45 to -35 or 45 to 35)
+        // Fade out when leaving (35 to 45 or -35 to -45)
+        const distFromEdge = 45 - Math.abs(data.position.x);
+        let opacity = Math.min(1, distFromEdge / 10);
+        
+        // Rapid fade out on warp
+        if (data.warpFade === undefined) data.warpFade = 1;
+        if (isWarping) data.warpFade = Math.max(0, data.warpFade - delta * 4);
+        
+        materialRef.current.opacity = Math.max(0, opacity * (data.warpFade ?? 1));
+      }
+
     } else if (data.exploding && fragmentsRef.current) {
       fragmentsRef.current.position.copy(data.position);
       fragmentsRef.current.children.forEach((child, i) => {
@@ -253,9 +330,15 @@ function Asteroid({ data, onClick }) {
   return (
     <>
       {!data.exploding && (
-        <mesh ref={meshRef} scale={data.scale} onClick={onClick} onPointerDown={onClick}>
+        <mesh ref={meshRef} scale={data.scale} onClick={onClick} onPointerDown={onClick} pointerEvents={isAmbient ? "none" : "auto"}>
           <dodecahedronGeometry args={[1, 0]} />
-          <meshBasicMaterial ref={materialRef} color={baseColor} wireframe={true} />
+          <meshBasicMaterial 
+            ref={materialRef} 
+            color={baseColor} 
+            wireframe={true} 
+            transparent={isAmbient} 
+            opacity={isAmbient ? 0 : 1} 
+          />
         </mesh>
       )}
       

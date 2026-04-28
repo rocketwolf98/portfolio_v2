@@ -46,11 +46,41 @@ class MidiPlayerEngine {
     this._currentLineIndex = -1;
     this._lastCharEnd = 0;
 
-    // MIDI Parameters
     this.volume = 0.5;
     this.reverb = 0.5;
     this.chorus = 0.5;
     this.polyphony = 128;
+
+    this.setupMediaSessionHandlers();
+  }
+
+  setupMediaSessionHandlers() {
+    if (typeof window === 'undefined' || !('mediaSession' in navigator)) return;
+
+    navigator.mediaSession.setActionHandler('play', () => this.play());
+    navigator.mediaSession.setActionHandler('pause', () => this.pause());
+    navigator.mediaSession.setActionHandler('previoustrack', () => this.prev());
+    navigator.mediaSession.setActionHandler('nexttrack', () => this.next());
+  }
+
+  updateMediaSession() {
+    if (typeof window === 'undefined' || !('mediaSession' in navigator)) return;
+
+    if (this.currentIndex >= 0 && this.currentIndex < this.playlist.length) {
+      const track = this.playlist[this.currentIndex];
+      navigator.mediaSession.metadata = new MediaMetadata({
+        title: track.name,
+        artist: 'Rocketwolf MIDI Player',
+        album: 'Portfolio Easter Egg',
+        artwork: [
+          { src: '/assets/favicon.png', sizes: '512x512', type: 'image/png' }
+        ]
+      });
+    } else {
+      navigator.mediaSession.metadata = null;
+    }
+
+    navigator.mediaSession.playbackState = this.isPlaying ? 'playing' : 'paused';
   }
 
   on(event, callback) {
@@ -275,6 +305,7 @@ class MidiPlayerEngine {
     
     this.emit('stateChange', this.isPlaying);
     this.emit('playlistChange', this.playlist, this.currentIndex);
+    this.updateMediaSession();
     
       this.startUpdating();
       // Force one immediate update
@@ -311,6 +342,7 @@ class MidiPlayerEngine {
     this.sequencer.play();
     this.isPlaying = true;
     this.emit('stateChange', this.isPlaying);
+    this.updateMediaSession();
     this.startUpdating();
   }
 
@@ -319,6 +351,7 @@ class MidiPlayerEngine {
     this.sequencer.pause();
     this.isPlaying = false;
     this.emit('stateChange', this.isPlaying);
+    this.updateMediaSession();
     this.stopUpdating();
   }
 
@@ -396,6 +429,7 @@ class MidiPlayerEngine {
     this.currentIndex = -1;
     this.emit('stateChange', this.isPlaying);
     this.emit('timeUpdate', this.currentTime, this.duration);
+    this.updateMediaSession();
     this.stopUpdating();
   }
   

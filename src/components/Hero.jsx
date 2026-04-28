@@ -207,8 +207,14 @@ export default function Hero() {
   const hoverTimeoutRef = useRef(null);
 
   const [logoClicks, setLogoClicks] = useState(0);
-  const [isClockMode, setIsClockMode] = useState(false);
-  const [isMidiMode, setIsMidiMode] = useState(false);
+  const [isClockMode, setIsClockMode] = useState(() => {
+    const path = typeof window !== 'undefined' ? window.location.pathname.toLowerCase() : '';
+    return path === '/space-game' || path === '/spacegame' || path === '/midi-player';
+  });
+  const [isMidiMode, setIsMidiMode] = useState(() => {
+    const path = typeof window !== 'undefined' ? window.location.pathname.toLowerCase() : '';
+    return path === '/midi-player';
+  });
   const [isMidiWarping, setIsMidiWarping] = useState(false);
   const [time, setTime] = useState(new Date());
   
@@ -219,7 +225,10 @@ export default function Hero() {
   const idleTimerRef = useRef(null);
 
   // Game State
-  const [gameStatus, setGameStatus] = useState('idle'); // 'idle' | 'playing' | 'gameover'
+  const [gameStatus, setGameStatus] = useState(() => {
+    const path = typeof window !== 'undefined' ? window.location.pathname.toLowerCase() : '';
+    return (path === '/space-game' || path === '/spacegame') ? 'playing' : 'idle';
+  }); // 'idle' | 'playing' | 'gameover'
   const [score, setScore] = useState(0);
   const [lives, setLives] = useState(3);
   const [isTakingDamage, setIsTakingDamage] = useState(false);
@@ -238,9 +247,51 @@ export default function Hero() {
     }
   });
 
+  // URL Path Detection for Easy Access
   useEffect(() => {
+    const handlePath = () => {
+      const path = window.location.pathname.toLowerCase();
+      if (path === '/space-game' || path === '/spacegame') {
+        setIsClockMode(true);
+        setGameStatus('playing');
+        setScore(0);
+        setLives(3);
+      } else if (path === '/midi-player') {
+        setIsClockMode(true);
+        setIsMidiMode(true);
+        setGameStatus('idle');
+      } else if (path === '/' || path === '') {
+        setIsClockMode(false);
+        setIsMidiMode(false);
+        setGameStatus('idle');
+      }
+    };
+
+    handlePath();
+    window.addEventListener('popstate', handlePath);
+    return () => window.removeEventListener('popstate', handlePath);
+  }, []);
+
+  // Sync URL with State
+  useEffect(() => {
+    if (isClockMode) {
+      const newPath = isMidiMode ? '/midi-player' : '/space-game';
+      if (window.location.pathname !== newPath) {
+        window.history.pushState(null, '', newPath);
+      }
+    } else {
+      if (window.location.pathname !== '/' && window.location.pathname !== '') {
+        window.history.pushState(null, '', '/');
+      }
+    }
+  }, [isClockMode, isMidiMode]);
+
+  useEffect(() => {
+    if (isClockMode || isMidiMode) {
+      midiPlayer.init(); // Start loading immediately for both modes
+    }
+
     if (isMidiMode) {
-      midiPlayer.init(); // Start loading immediately
       const handleTimeUpdate = (time, duration) => setMidiData(prev => ({ ...prev, time, duration }));
       const handlePlaylistChange = (playlist, index) => setMidiData(prev => ({ ...prev, playlistLength: playlist.length, playlistIndex: index }));
       const handleTrackWarping = () => {
@@ -264,9 +315,6 @@ export default function Hero() {
         midiPlayer.off('trackWarping', handleTrackWarping);
         midiPlayer.stop();
         setIsMidiWarping(false);
-        if (isClockMode) {
-          // Stay silent even after MIDI mode exit
-        }
       };
     } else {
       setMidiData({ time: 0, duration: 0, playlistIndex: -1, playlistLength: 0 });

@@ -44,7 +44,7 @@ const initAudio = async () => {
       console.log('[Audio] Synthesis engine ready.');
       
       if (audioCtx.state === 'suspended') {
-        await audioCtx.resume();
+        audioCtx.resume().catch(e => console.warn('[Audio] Auto-resume failed (expected without gesture):', e));
       }
       
       return synth;
